@@ -8,6 +8,17 @@ app_email = "dev@example.com"
 app_license = "MIT"
 required_apps = ["frappe"]
 
+# Tile on the /apps screen, opening the Notification Engine workspace
+add_to_apps_screen = [
+	{
+		"name": "notification_engine",
+		"logo": "/assets/notification_engine/images/logo.svg",
+		"title": "Notification Engine",
+		"route": "/app/notification-engine",
+		"has_permission": "notification_engine.apps.has_app_permission",
+	}
+]
+
 # Teams desk helpers (shared by the Teams forms)
 app_include_js = "/assets/notification_engine/js/teams.js"
 
