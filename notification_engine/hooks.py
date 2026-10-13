@@ -31,6 +31,9 @@ website_route_rules = [{"from_route": "/teams-notify/<path:app_path>", "to_route
 before_install = "notification_engine.teams.install.check_legacy_app_removed"
 after_install = "notification_engine.teams.install.setup"
 before_migrate = "notification_engine.teams.install.check_legacy_app_removed"
+# Sites upgraded from an older Notification Engine never ran after_install: create the Teams
+# role and bot user on migrate too (both steps skip what already exists).
+after_migrate = "notification_engine.teams.install.setup"
 
 # -----------------------------------------------------------------------
 # Teams bot
