@@ -1,0 +1,312 @@
+{
+ "actions": [],
+ "autoname": "Format:{title}-{DD}-{MM}-{YYYY}",
+ "naming_rule": "Expression",
+ "creation": "2026-08-10 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "is_enabled",
+  "column_break_trigger",
+  "reference_doctype",
+  "event",
+  "value_changed_field",
+  "date_field",
+  "days_offset",
+  "section_break_condition",
+  "condition",
+  "section_break_recipients",
+  "recipient_source",
+  "role",
+  "document_field",
+  "project_field",
+  "department_field",
+  "match_current_state_role",
+  "sample_reference_document",
+  "resolved_users_html",
+  "recipients",
+  "section_break_channels",
+  "send_system_notification",
+  "send_email",
+  "column_break_channels_2",
+  "send_sms",
+  "section_break_email_delivery",
+  "email_delivery_mode",
+  "single_email_to_address",
+  "column_break_email_delivery_2",
+  "cc_recipients",
+  "bcc_recipients",
+  "section_break_content",
+  "subject",
+  "message"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled",
+   "description": "Master switch. When off, this rule never fires regardless of recipient settings below."
+  },
+  {
+   "fieldname": "column_break_trigger",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reference Document Type",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Event",
+   "options": "After Insert\nOn Update\nOn Submit\nOn Cancel\nOn Trash\nValue Change\nWorkflow Action\nDays Before\nDays After",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.event==\"Value Change\"",
+   "description": "Fieldname on the reference doctype to watch for changes. Dropdown lists every field on that doctype, including custom fields.",
+   "fieldname": "value_changed_field",
+   "fieldtype": "Select",
+   "label": "Field To Watch",
+   "mandatory_depends_on": "eval:doc.event==\"Value Change\""
+  },
+  {
+   "depends_on": "eval:[\"Days Before\",\"Days After\"].includes(doc.event)",
+   "description": "Date/Datetime fieldname on the reference doctype. Dropdown lists that doctype's Date/Datetime fields, including custom fields.",
+   "fieldname": "date_field",
+   "fieldtype": "Select",
+   "label": "Date Field",
+   "mandatory_depends_on": "eval:[\"Days Before\",\"Days After\"].includes(doc.event)"
+  },
+  {
+   "depends_on": "eval:[\"Days Before\",\"Days After\"].includes(doc.event)",
+   "fieldname": "days_offset",
+   "fieldtype": "Int",
+   "label": "Number Of Days",
+   "mandatory_depends_on": "eval:[\"Days Before\",\"Days After\"].includes(doc.event)"
+  },
+  {
+   "fieldname": "section_break_condition",
+   "fieldtype": "Section Break",
+   "label": "Condition"
+  },
+  {
+   "description": "Optional Python expression evaluated against the document (variable: doc). Leave blank to always match. Example: doc.grand_total > 100000",
+   "fieldname": "condition",
+   "fieldtype": "Code",
+   "label": "Condition",
+   "options": "Python"
+  },
+  {
+   "fieldname": "section_break_recipients",
+   "fieldtype": "Section Break",
+   "label": "Recipients"
+  },
+  {
+   "default": "Specific Users",
+   "fieldname": "recipient_source",
+   "fieldtype": "Select",
+   "label": "Recipient Source",
+   "options": "Specific Users\nRole \u2192 Expand To Users\nDocument Field (User)\nWorkflow Roles (Project + Department)",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.recipient_source==\"Role \u2192 Expand To Users\"",
+   "description": "Used only to seed/refresh the Recipients table below via \"Sync From Role\". Existing per-user enable/disable toggles are preserved.",
+   "fieldname": "role",
+   "fieldtype": "Link",
+   "label": "Role",
+   "options": "Role",
+   "mandatory_depends_on": "eval:doc.recipient_source==\"Role \u2192 Expand To Users\""
+  },
+  {
+   "depends_on": "eval:doc.recipient_source==\"Document Field (User)\"",
+   "description": "Fieldname on the reference doctype that stores a User link. Dropdown lists that doctype's Link fields pointing to User, including custom fields.",
+   "fieldname": "document_field",
+   "fieldtype": "Select",
+   "label": "Document Field",
+   "mandatory_depends_on": "eval:doc.recipient_source==\"Document Field (User)\""
+  },
+  {
+   "depends_on": "eval:doc.recipient_source==\"Workflow Roles (Project + Department)\"",
+   "description": "Fieldname on the reference doctype holding the Project link. Dropdown lists that doctype's Link fields pointing to Project. Everyone assigned in that project's Committee (with an applicable Role Master binding) is automatically included as a recipient - no manual role selection needed.",
+   "fieldname": "project_field",
+   "fieldtype": "Select",
+   "label": "Project Field"
+  },
+  {
+   "depends_on": "eval:doc.recipient_source==\"Workflow Roles (Project + Department)\"",
+   "description": "Fieldname on the reference doctype holding the Department link. Dropdown lists that doctype's Link fields pointing to Department. That department's Department Head is automatically included as a recipient - no role selection needed.",
+   "fieldname": "department_field",
+   "fieldtype": "Select",
+   "label": "Department Field"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.recipient_source==\"Workflow Roles (Project + Department)\"",
+   "description": "When ON, finds whichever Role is required to act on the document's CURRENT workflow state, then resolves it via a priority chain: (1) Project Committee, if a committee position is bound to that Role; (2) Department Head, only if they personally hold that Role; (3) any user in the system directly assigned that Role (Has Role) - this last step is what covers company-wide roles like CEO / MD / Purchase Head that were never going to be in a Project Committee table. Each step only runs if the previous one found nobody valid. This is looked up dynamically every time from the reference doctype's active Workflow, so one rule automatically routes to the right approver for every status without a separate rule or condition per state. When OFF, the entire applicable committee AND the Department Head are both notified together (general 'keep everyone informed' mode, no fallback chain).",
+   "fieldname": "match_current_state_role",
+   "fieldtype": "Check",
+   "label": "Notify Only Current State's Approver"
+  },
+  {
+   "depends_on": "eval:doc.recipient_source==\"Workflow Roles (Project + Department)\" && doc.reference_doctype",
+   "description": "Pick an existing document of the Reference Document Type to test this resolution against, using \"Preview Resolved Users\" below. Not used at send time - only for testing this configuration.",
+   "fieldname": "sample_reference_document",
+   "fieldtype": "Dynamic Link",
+   "label": "Sample Reference Document (for preview)",
+   "options": "reference_doctype"
+  },
+  {
+   "depends_on": "eval:doc.recipient_source==\"Workflow Roles (Project + Department)\"",
+   "fieldname": "resolved_users_html",
+   "fieldtype": "HTML",
+   "label": "Resolved Users Preview",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.recipient_source!=\"Document Field (User)\" && doc.recipient_source!=\"Workflow Roles (Project + Department)\"",
+   "description": "The final, resolved list of users. Untick \"Enabled\" on any row to silence that specific person without removing them.",
+   "fieldname": "recipients",
+   "fieldtype": "Table",
+   "label": "Recipients",
+   "options": "Notification Rule Recipient"
+  },
+  {
+   "fieldname": "section_break_channels",
+   "fieldtype": "Section Break",
+   "label": "Channels"
+  },
+  {
+   "default": "1",
+   "fieldname": "send_system_notification",
+   "fieldtype": "Check",
+   "label": "System Notification"
+  },
+  {
+   "fieldname": "send_email",
+   "fieldtype": "Check",
+   "label": "Email"
+  },
+  {
+   "fieldname": "column_break_channels_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "send_sms",
+   "fieldtype": "Check",
+   "label": "SMS"
+  },
+  {
+   "depends_on": "eval:doc.send_email",
+   "fieldname": "section_break_email_delivery",
+   "fieldtype": "Section Break",
+   "label": "Email Delivery"
+  },
+  {
+   "default": "Individual Emails",
+   "depends_on": "eval:doc.send_email",
+   "description": "Individual Emails: one email per recipient (safest for privacy, uses one send credit per person). Single Email (To): one send, everyone visible to each other in To. Single Email (BCC): one send, recipients hidden from each other.",
+   "fieldname": "email_delivery_mode",
+   "fieldtype": "Select",
+   "label": "Delivery Mode",
+   "options": "Individual Emails\nSingle Email (To)\nSingle Email (BCC)"
+  },
+  {
+   "depends_on": "eval:doc.send_email && doc.email_delivery_mode==\"Single Email (BCC)\"",
+   "description": "Placeholder address shown in the To field when all real recipients are hidden in BCC. Defaults to the site's outgoing/no-reply address if left blank.",
+   "fieldname": "single_email_to_address",
+   "fieldtype": "Data",
+   "label": "Placeholder \"To\" Address",
+   "options": "Email"
+  },
+  {
+   "fieldname": "column_break_email_delivery_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.send_email",
+   "description": "Always-CC'd users. Each row can carry its own condition to make it conditional, e.g. only CC Finance when doc.grand_total > 100000.",
+   "fieldname": "cc_recipients",
+   "fieldtype": "Table",
+   "label": "CC",
+   "options": "Notification Rule Cc Bcc Recipient"
+  },
+  {
+   "depends_on": "eval:doc.send_email",
+   "description": "Always-BCC'd users. Each row can carry its own condition, same as CC above.",
+   "fieldname": "bcc_recipients",
+   "fieldtype": "Table",
+   "label": "BCC",
+   "options": "Notification Rule Cc Bcc Recipient"
+  },
+  {
+   "fieldname": "section_break_content",
+   "fieldtype": "Section Break",
+   "label": "Content"
+  },
+  {
+   "description": "Jinja allowed, e.g. Leave Application {{ doc.name }} needs your approval",
+   "fieldname": "subject",
+   "fieldtype": "Data",
+   "label": "Subject",
+   "reqd": 1
+  },
+  {
+   "description": "Jinja allowed. The reference document is available as 'doc'.",
+   "fieldname": "message",
+   "fieldtype": "Code",
+   "label": "Message",
+   "options": "Jinja",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "group": "Delivery",
+   "link_doctype": "Notification Engine Log",
+   "link_fieldname": "notification_rule"
+  }
+ ],
+ "modified": "2026-08-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Notification Engine",
+ "name": "Notification Rule",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,0 +1,70 @@
+{
+ "actions": [],
+ "creation": "2026-08-10 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sms_section",
+  "sms_gateway",
+  "sms_api_url",
+  "sms_api_key",
+  "column_break_sms",
+  "sms_sender_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "sms_section",
+   "fieldtype": "Section Break",
+   "label": "SMS"
+  },
+  {
+   "fieldname": "sms_gateway",
+   "fieldtype": "Select",
+   "label": "SMS Gateway",
+   "options": "Twilio\nMSG91\nCustom HTTP"
+  },
+  {
+   "fieldname": "sms_api_url",
+   "fieldtype": "Data",
+   "label": "API URL",
+   "description": "For Custom HTTP gateway, or your Twilio/MSG91 endpoint override"
+  },
+  {
+   "fieldname": "sms_api_key",
+   "fieldtype": "Password",
+   "label": "API Key / Auth Token"
+  },
+  {
+   "fieldname": "column_break_sms",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sms_sender_id",
+   "fieldtype": "Data",
+   "label": "Sender ID"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Notification Engine",
+ "name": "Notification Engine Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

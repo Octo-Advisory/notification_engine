@@ -1,0 +1,4 @@
+[pre_model_sync]
+
+[post_model_sync]
+notification_engine.patches.migrate_core_notifications

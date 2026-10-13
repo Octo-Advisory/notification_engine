@@ -1,0 +1,7 @@
+recursive-include notification_engine *.json
+recursive-include notification_engine *.md
+recursive-include notification_engine *.txt
+recursive-include notification_engine *.html
+recursive-include notification_engine *.css
+recursive-include notification_engine *.js
+recursive-exclude *.pyc
