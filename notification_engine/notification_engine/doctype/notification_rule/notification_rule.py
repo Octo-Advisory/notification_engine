@@ -1,15 +1,32 @@
+import json
+
 import frappe
 from frappe import _
+from frappe.model import default_fields, no_value_fields, table_fields
 from frappe.model.document import Document
 
-from notification_engine.engine.events import clear_rule_cache
+from notification_engine.engine.events import OWN_DOCTYPES, clear_rule_cache
+
+# Standard columns that can be shown on a Teams card.
+STANDARD_FIELDS = ("name", "owner", "creation", "modified", "modified_by", "docstatus")
+# Never send these to Teams.
+BLOCKED_FIELDTYPES = {"Password", *table_fields, *no_value_fields}
+PERSONAL_TYPES = ("Webhook (Personal via Flow bot)", "Bot (Personal Chat)")
+# Recipient sources backed by ERPNext's Employee, which this app does not require.
+HR_SOURCES = {"Designation": "designation", "Department": "department"}
+USER_CHANNELS = ("send_system_notification", "send_email", "send_sms")
 
 
 class NotificationRule(Document):
 	def validate(self):
+		self.validate_reference_doctype()
+		self.validate_condition()
 		self.validate_recipient_source()
 		self.validate_event_fields()
+		self.validate_channels()
 		self.validate_email_delivery()
+		if self.send_teams:
+			self.validate_teams()
 
 	def on_update(self):
 		clear_rule_cache()
@@ -27,13 +44,21 @@ class NotificationRule(Document):
 		if self.recipient_source == "Document Field (User)" and not self.document_field:
 			frappe.throw(_("Document Field is required when Recipient Source is 'Document Field (User)'"))
 
-		if self.recipient_source == "Designation":
-			if not frappe.db.exists("DocType", "Designation"):
-				frappe.throw(_("Recipient Source 'Designation' needs ERPNext (Employee / Designation) installed on this site."))
-			if not self.designation:
-				frappe.throw(_("Designation is required when Recipient Source is 'Designation'"))
-			if not frappe.db.exists("Designation", self.designation):
-				frappe.throw(_("Designation {0} does not exist").format(self.designation))
+		if self.recipient_source == "Document Field (User)" and self.document_field not in ("owner", "modified_by"):
+			df = frappe.get_meta(self.reference_doctype).get_field(self.document_field)
+			if not df:
+				frappe.throw(_("{0} is not a field of {1}").format(self.document_field, self.reference_doctype))
+
+		if self.recipient_source in HR_SOURCES:
+			doctype, fieldname = self.recipient_source, HR_SOURCES[self.recipient_source]
+			if not frappe.db.exists("DocType", "Employee"):
+				frappe.throw(
+					_("Recipient Source '{0}' needs ERPNext (Employee / {0}) installed on this site.").format(_(doctype))
+				)
+			if not self.get(fieldname):
+				frappe.throw(_("{0} is required when Recipient Source is '{0}'").format(_(doctype)))
+			if not frappe.db.exists(doctype, self.get(fieldname)):
+				frappe.throw(_("{0} {1} does not exist").format(_(doctype), self.get(fieldname)))
 
 		if self.recipient_source == "Workflow Roles (Project + Department)":
 			if not frappe.db.exists("DocType", "Employee"):
@@ -55,8 +80,15 @@ class NotificationRule(Document):
 					  "(e.g. CEO/MD/Purchase Head) without either field.")
 				)
 
-		no_recipient_table_sources = ("Document Field (User)", "Workflow Roles (Project + Department)", "Designation")
-		if self.recipient_source not in no_recipient_table_sources and not self.recipients:
+		no_recipient_table_sources = (
+			"Document Field (User)",
+			"Workflow Roles (Project + Department)",
+			"Assigned To",
+			*HR_SOURCES,
+		)
+		# A Teams rule may post only to chats / channels, with nobody to notify individually.
+		teams_group_only = self.send_teams and self.teams_destinations and not self.teams_personal_destination
+		if self.recipient_source not in no_recipient_table_sources and not self.recipients and not teams_group_only:
 			frappe.msgprint(
 				_(
 					"No recipients configured yet. This rule will not notify anyone until you add at "
@@ -67,14 +99,145 @@ class NotificationRule(Document):
 			)
 
 	def validate_event_fields(self):
-		if self.event == "Value Change" and not self.value_changed_field:
-			frappe.throw(_("Field To Watch is required for the 'Value Change' event"))
+		if self.event == "Value Change":
+			if not self.value_changed_field:
+				frappe.throw(_("Field To Watch is required for the 'Value Change' event"))
+			meta = frappe.get_meta(self.reference_doctype)
+			if not (meta.get_field(self.value_changed_field) or self.value_changed_field in default_fields):
+				frappe.throw(_("{0} is not a field of {1}").format(self.value_changed_field, self.reference_doctype))
 
 		if self.event in ("Days Before", "Days After"):
 			if not self.date_field:
 				frappe.throw(_("Date Field is required for '{0}' event").format(self.event))
+			df = frappe.get_meta(self.reference_doctype).get_field(self.date_field)
+			if self.date_field not in ("creation", "modified") and not (df and df.fieldtype in ("Date", "Datetime")):
+				frappe.throw(_("{0} is not a Date or Datetime field of {1}").format(self.date_field, self.reference_doctype))
 			if not self.days_offset:
 				frappe.throw(_("Number Of Days is required for '{0}' event").format(self.event))
+
+	def validate_reference_doctype(self):
+		if self.reference_doctype in OWN_DOCTYPES:
+			frappe.throw(_("Notification Engine's own DocTypes cannot have notification rules."))
+		meta = frappe.get_meta(self.reference_doctype)
+		if meta.istable:
+			frappe.throw(_("{0} is a child table. Create the rule on its parent DocType.").format(self.reference_doctype))
+		if self.event in ("On Submit", "On Cancel") and not meta.is_submittable:
+			frappe.throw(_("{0} is not submittable, so it has no {1} event.").format(self.reference_doctype, _(self.event)))
+
+	def validate_condition(self):
+		if not (self.condition or "").strip():
+			return
+		try:
+			compile(self.condition, "<condition>", "eval")
+		except SyntaxError as e:
+			frappe.throw(_("Condition is not a valid Python expression: {0}").format(e.msg), title=_("Invalid Condition"))
+
+	def validate_channels(self):
+		if not any(self.get(f) for f in (*USER_CHANNELS, "send_teams")):
+			frappe.msgprint(_("No channel is ticked yet, so this rule sends nothing."), indicator="orange", alert=True)
+		if any(self.get(f) for f in USER_CHANNELS) and not (self.message or "").strip():
+			frappe.throw(_("Message is required for System Notification, Email and SMS."))
+
+	def validate_teams(self):
+		"""The Microsoft Teams section: destinations, card fields, buttons and templates."""
+		if not self.teams_destinations and not self.teams_personal_destination:
+			frappe.throw(_("Microsoft Teams is ticked: add a Teams chat / channel or a Personal Destination."))
+
+		seen = set()
+		for row in self.teams_destinations:
+			if row.destination in seen:
+				frappe.throw(_("Teams Chats / Channels row {0}: {1} is listed twice.").format(row.idx, row.destination))
+			seen.add(row.destination)
+			if _destination_type(row.destination) in PERSONAL_TYPES:
+				frappe.throw(
+					_("Teams Chats / Channels row {0}: {1} sends personal messages. Use it as Personal Destination instead.").format(
+						row.idx, row.destination
+					)
+				)
+		if self.teams_personal_destination and _destination_type(self.teams_personal_destination) not in PERSONAL_TYPES:
+			frappe.throw(
+				_("Personal Destination must be a 'Bot (Personal Chat)' or 'Webhook (Personal via Flow bot)' destination.")
+			)
+
+		meta = frappe.get_meta(self.reference_doctype)
+		seen = set()
+		for row in self.teams_fields:
+			if row.fieldname in seen:
+				frappe.throw(_("Fields to Show row {0}: {1} is listed twice.").format(row.idx, row.fieldname))
+			seen.add(row.fieldname)
+			if row.fieldname in STANDARD_FIELDS:
+				continue
+			df = meta.get_field(row.fieldname)
+			if not df:
+				frappe.throw(_("Fields to Show row {0}: {1} is not a field of {2}.").format(row.idx, row.fieldname, self.reference_doctype))
+			if df.fieldtype in BLOCKED_FIELDTYPES:
+				frappe.throw(_("Fields to Show row {0}: {1} fields cannot be sent to Teams.").format(row.idx, _(df.fieldtype)))
+
+		self.validate_teams_buttons()
+		self.validate_teams_templates()
+
+	def validate_teams_buttons(self):
+		from frappe.model.workflow import get_workflow_name
+
+		if not (self.teams_all_workflow_actions or self.teams_buttons):
+			return
+		workflow_rows = [r for r in self.teams_buttons if r.button_type == "Workflow Action"]
+		if self.teams_all_workflow_actions or workflow_rows:
+			workflow_name = get_workflow_name(self.reference_doctype)
+			if not workflow_name:
+				frappe.throw(_("{0} has no active Workflow, so it has no workflow actions.").format(self.reference_doctype))
+			actions = set(frappe.get_all("Workflow Transition", {"parent": workflow_name}, pluck="action"))
+			seen = set()
+			for row in workflow_rows:
+				if row.workflow_action not in actions:
+					frappe.throw(
+						_("Buttons row {0}: {1} is not an action of workflow {2}.").format(
+							row.idx, row.workflow_action, workflow_name
+						)
+					)
+				if row.workflow_action in seen:
+					frappe.throw(_("Buttons row {0}: {1} is listed twice.").format(row.idx, row.workflow_action))
+				seen.add(row.workflow_action)
+
+		meta = frappe.get_meta(self.reference_doctype)
+		for row in self.teams_buttons:
+			if row.button_type != "Set Value":
+				continue
+			df = meta.get_field(row.fieldname) if row.fieldname else None
+			if not df:
+				frappe.throw(_("Buttons row {0}: choose a field of {1} to set.").format(row.idx, self.reference_doctype))
+			if df.fieldtype in BLOCKED_FIELDTYPES or df.fieldtype in ("Attach", "Attach Image", "Signature"):
+				frappe.throw(_("Buttons row {0}: {1} fields cannot be set from Teams.").format(row.idx, _(df.fieldtype)))
+			if not row.label:
+				frappe.throw(_("Buttons row {0}: enter a label for the Set Value button.").format(row.idx))
+
+		destinations = [r.destination for r in self.teams_destinations] + [self.teams_personal_destination]
+		if not any((_destination_type(d) or "").startswith("Bot") for d in destinations if d):
+			frappe.msgprint(
+				_("Buttons only appear on cards sent by the Teams bot. This rule has no bot destination yet."),
+				indicator="orange",
+				alert=True,
+			)
+
+	def validate_teams_templates(self):
+		"""Render the Teams card against a sample document so mistakes show up on save."""
+		from notification_engine.teams.cards.builder import build_card
+		from notification_engine.teams.templates import get_context, render
+
+		doc = get_sample_doc(self.reference_doctype)
+		try:
+			build_card(self, doc)
+		except json.JSONDecodeError as e:
+			frappe.throw(_("Teams Card Template did not render valid JSON: {0}").format(e), title=_("Invalid Card Template"))
+		except frappe.ValidationError:
+			raise
+		except Exception as e:
+			frappe.throw(_("Teams template error: {0}").format(e), title=_("Invalid Template"))
+
+		if (self.teams_card_template or "").strip():
+			card = json.loads(render(self.teams_card_template, get_context(doc)))
+			if not isinstance(card, dict) or card.get("type") != "AdaptiveCard":
+				frappe.throw(_('Teams Card Template must render a JSON object with "type": "AdaptiveCard".'))
 
 	def validate_email_delivery(self):
 		if not self.send_email:
@@ -133,7 +296,10 @@ class NotificationRule(Document):
 		configured sample document and returns a rendered HTML table for
 		the preview field.
 		"""
-		from notification_engine.engine.role_resolver import resolve_via_project_department, render_preview_html
+		from notification_engine.engine.role_resolver import (
+			render_preview_html,
+			resolve_via_project_department,
+		)
 
 		if not self.sample_reference_document:
 			frappe.throw(_("Set a Sample Reference Document before previewing"))
@@ -154,11 +320,32 @@ def sync_role_users(name):
 
 
 @frappe.whitelist()
-def get_designations():
-	"""Options for the Designation picker. Empty when ERPNext isn't installed."""
-	if not frappe.db.exists("DocType", "Designation"):
+def get_hr_options(doctype):
+	"""Options for the Designation / Department pickers. Empty when ERPNext isn't installed."""
+	if doctype not in HR_SOURCES or not frappe.db.exists("DocType", doctype):
 		return []
-	return frappe.get_all("Designation", pluck="name", order_by="name asc")
+	return frappe.get_all(doctype, pluck="name", order_by="name asc")
+
+
+def get_sample_doc(doctype, name=None):
+	"""The given document, else the latest one, else a blank new document."""
+	if name:
+		return frappe.get_doc(doctype, name)
+	meta = frappe.get_meta(doctype)
+	if meta.issingle:
+		return frappe.get_doc(doctype)
+	latest = frappe.get_all(doctype, order_by="modified desc", limit=1, pluck="name")
+	if latest:
+		return frappe.get_doc(doctype, latest[0])
+	doc = frappe.new_doc(doctype)
+	doc.name = _("Sample")
+	return doc
+
+
+def _destination_type(destination):
+	if not destination:
+		return None
+	return frappe.db.get_value("Teams Destination", destination, "destination_type")
 
 
 @frappe.whitelist()

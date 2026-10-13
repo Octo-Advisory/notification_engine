@@ -16,6 +16,7 @@
   "section_break_native",
   "communication",
   "notification_log",
+  "teams_message_log",
   "section_break_1",
   "subject",
   "content",
@@ -37,7 +38,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Channel",
-   "options": "System\nEmail\nSMS"
+   "options": "System\nEmail\nSMS\nTeams"
   },
   {
    "fieldname": "status",
@@ -45,7 +46,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Success\nFailed\nSkipped"
+   "options": "Success\nFailed\nSkipped\nQueued"
   },
   {
    "fieldname": "column_break_1",
@@ -108,6 +109,15 @@
    "options": "Notification Log"
   },
   {
+   "depends_on": "eval:doc.channel==\"Teams\"",
+   "fieldname": "teams_message_log",
+   "fieldtype": "Link",
+   "label": "Teams Message Log",
+   "options": "Teams Message Log",
+   "read_only": 1,
+   "description": "Teams delivers in the background. Its Sent / Failed status is on this log."
+  },
+  {
    "fieldname": "section_break_1",
    "fieldtype": "Section Break",
    "label": "What Was Sent",
@@ -136,7 +146,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-10 00:00:00.000000",
+ "modified": "2026-10-14 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Notification Engine",
  "name": "Notification Engine Log",

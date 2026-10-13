@@ -1,0 +1,11 @@
+{
+  "name": "teams_notify",
+  "private": true,
+  "description": "Builds the Teams Notify dashboard (frontend/) during bench build",
+  "scripts": {
+    "postinstall": "cd frontend && yarn install",
+    "dev": "cd frontend && yarn dev",
+    "build": "cd frontend && yarn build"
+  },
+  "license": "MIT"
+}

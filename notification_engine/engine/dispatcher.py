@@ -1,25 +1,47 @@
 import frappe
 
-from notification_engine.notification_engine.doctype.notification_engine_log.notification_engine_log import (
-	create_log,
-)
 from notification_engine.channels import email as email_channel
 from notification_engine.channels import sms as sms_channel
 from notification_engine.channels import system as system_channel
+from notification_engine.notification_engine.doctype.notification_engine_log.notification_engine_log import (
+	create_log,
+)
+from notification_engine.teams import rules as teams_channel
 
 
 def dispatch(rule, doc, users):
 	"""Render the rule's subject/message once, then fan out to every enabled
 	channel for every resolved user. Each (channel, user) attempt is logged
 	independently so a failure in one channel never blocks the others.
+
+	`users` may be empty for a rule that only posts to Teams chats /
+	channels - the per-user channels then have nobody to send to.
 	"""
-	if not users:
+	if not users and not has_group_channel(rule):
 		return
 
 	context = {"doc": doc}
-	subject = frappe.render_template(rule.subject, context)
-	message = frappe.render_template(rule.message, context)
+	subject = frappe.render_template(rule.subject or "", context)
+	message = frappe.render_template(rule.message or "", context)
 
+	if users:
+		_run_user_channels(rule, doc, users, subject, message)
+
+	if rule.get("send_teams"):
+		_run_channel(
+			"Teams", rule, doc, users, subject, message,
+			lambda: teams_channel.send(rule, doc, users, subject, message),
+		)
+
+	_run_external_channels(rule, doc, users, subject, message)
+
+
+def has_group_channel(rule):
+	"""True when the rule sends somewhere that needs no individual recipient."""
+	return bool(rule.get("send_teams") and rule.get("teams_destinations"))
+
+
+def _run_user_channels(rule, doc, users, subject, message):
 	if rule.send_system_notification:
 		_run_channel(
 			"System", rule, doc, users, subject, message,
@@ -38,8 +60,6 @@ def dispatch(rule, doc, users):
 			lambda: sms_channel.send(rule, doc, users, subject, message),
 		)
 
-	_run_external_channels(rule, doc, users, subject, message)
-
 
 def _run_external_channels(rule, doc, users, subject, message):
 	"""Extra channels other apps register in their hooks.py:
@@ -49,7 +69,7 @@ def _run_external_channels(rule, doc, users, subject, message):
 	Each is called as fn(rule, doc, users, subject, message) after the
 	built-in channels, with the same resolved users and rendered content.
 	The function decides from the rule itself whether it should send (e.g.
-	a custom "send_teams" checkbox) and does its own per-user logging, the
+	a Custom Field checkbox its app adds) and does its own per-user logging, the
 	same as the built-in channels. One app's failure never blocks the others.
 	"""
 	for method in frappe.get_hooks("notification_engine_channels"):

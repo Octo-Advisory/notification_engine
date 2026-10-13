@@ -1,11 +1,35 @@
 const NOTIFICATION_ENGINE_LAYOUT_FIELDTYPES = [
 	"Section Break", "Column Break", "Tab Break", "HTML", "Button", "Fold", "Heading",
 ];
+const NOTIFICATION_ENGINE_RULE_METHOD = "notification_engine.notification_engine.doctype.notification_rule.notification_rule";
+const NOTIFICATION_ENGINE_OWN_DOCTYPES = [
+	"Notification Rule", "Notification Engine Log", "Notification User Preference", "Notification Engine Settings",
+	"Teams Settings", "Teams Destination", "Teams Message Log", "Teams Digest Buffer", "Teams User Map",
+];
+const NOTIFICATION_ENGINE_TEAMS_GROUP_TYPES = ["Webhook", "Bot Conversation"];
+const NOTIFICATION_ENGINE_TEAMS_PERSONAL_TYPES = ["Bot (Personal Chat)", "Webhook (Personal via Flow bot)"];
 
 frappe.ui.form.on("Notification Rule", {
+	setup(frm) {
+		frm.set_query("reference_doctype", () => ({
+			filters: { istable: 0, name: ["not in", NOTIFICATION_ENGINE_OWN_DOCTYPES] },
+		}));
+		frm.set_query("destination", "teams_destinations", () => ({
+			filters: { destination_type: ["in", NOTIFICATION_ENGINE_TEAMS_GROUP_TYPES] },
+		}));
+		frm.set_query("teams_personal_destination", () => ({
+			filters: { destination_type: ["in", NOTIFICATION_ENGINE_TEAMS_PERSONAL_TYPES] },
+		}));
+	},
+
 	refresh(frm) {
 		refresh_dynamic_dropdowns(frm);
-		load_designation_options(frm);
+		load_hr_options(frm);
+		refresh_teams_options(frm);
+
+		if (!frm.is_new() && frm.doc.send_teams) {
+			frm.add_custom_button(__("Send Teams Test"), () => send_teams_test(frm));
+		}
 
 		if (!frm.is_new() && frm.doc.recipient_source === "Role \u2192 Expand To Users" && frm.doc.role) {
 			frm.add_custom_button(__("Sync From Role"), () => {
@@ -50,35 +74,133 @@ frappe.ui.form.on("Notification Rule", {
 
 	reference_doctype(frm) {
 		refresh_dynamic_dropdowns(frm, true);
+		refresh_teams_options(frm);
 	},
 
 	recipient_source(frm) {
-		load_designation_options(frm);
+		load_hr_options(frm);
+	},
+
+	send_teams(frm) {
+		refresh_teams_options(frm);
 	},
 });
 
 /**
- * Designation comes from ERPNext, which this app does not require, so the
- * field is an Autocomplete filled from the server rather than a Link.
+ * Designation and Department come from ERPNext, which this app does not
+ * require, so they are Autocomplete fields filled from the server rather
+ * than Links.
  */
-function load_designation_options(frm) {
-	if (frm.doc.recipient_source !== "Designation") return;
+function load_hr_options(frm) {
+	const fieldname = { Designation: "designation", Department: "department" }[frm.doc.recipient_source];
+	if (!fieldname) return;
 
 	frappe.call({
-		method: "notification_engine.notification_engine.doctype.notification_rule.notification_rule.get_designations",
+		method: `${NOTIFICATION_ENGINE_RULE_METHOD}.get_hr_options`,
+		args: { doctype: frm.doc.recipient_source },
 		callback: (r) => {
 			const options = r.message || [];
-			frm.set_df_property("designation", "options", options);
+			frm.set_df_property(fieldname, "options", options);
 			if (!options.length) {
 				frm.set_df_property(
-					"designation",
+					fieldname,
 					"description",
-					__("No Designations found. This source needs ERPNext (Employee / Designation) installed on this site.")
+					__("No {0} records found. This source needs ERPNext (Employee / {0}) installed on this site.", [
+						__(frm.doc.recipient_source),
+					])
 				);
 			}
-			frm.refresh_field("designation");
+			frm.refresh_field(fieldname);
 		},
 	});
+}
+
+/** Field pickers of the Teams section: card fields, Set Value buttons and workflow actions. */
+function refresh_teams_options(frm) {
+	if (!frm.doc.reference_doctype || !frm.doc.send_teams) return;
+
+	const blocked = ["Password", ...frappe.model.table_fields, ...frappe.model.no_value_type];
+	const standard = ["name", "owner", "creation", "modified", "modified_by"];
+
+	frappe.model.with_doctype(frm.doc.reference_doctype, () => {
+		const options = frappe
+			.get_meta(frm.doc.reference_doctype)
+			.fields.filter((df) => !blocked.includes(df.fieldtype))
+			.map((df) => ({
+				value: df.fieldname,
+				label: `${df.fieldname} (${__(df.label || df.fieldname, null, df.parent)})`,
+			}));
+
+		frm.fields_dict.teams_fields.grid.update_docfield_property("fieldname", "options", [""].concat(options, standard));
+		frm.fields_dict.teams_buttons.grid.update_docfield_property("fieldname", "options", [""].concat(options));
+		frm.refresh_field("teams_fields");
+	});
+
+	frappe.db
+		.get_value("Workflow", { document_type: frm.doc.reference_doctype, is_active: 1 }, "name")
+		.then((r) => {
+			const workflow = r.message && r.message.name;
+			if (!workflow) {
+				frm.fields_dict.teams_buttons.grid.update_docfield_property("workflow_action", "options", [""]);
+				frm.set_df_property(
+					"teams_all_workflow_actions",
+					"description",
+					__("{0} has no active Workflow. Only Set Value buttons are possible.", [__(frm.doc.reference_doctype)])
+				);
+				return;
+			}
+			frappe.model.with_doc("Workflow", workflow, () => {
+				const actions = [...new Set((frappe.get_doc("Workflow", workflow).transitions || []).map((t) => t.action))];
+				frm.fields_dict.teams_buttons.grid.update_docfield_property("workflow_action", "options", [""].concat(actions));
+				frm.refresh_field("teams_buttons");
+			});
+		});
+}
+
+/** Sends this rule's Teams card for a chosen (or the latest) document, with a [TEST] prefix. */
+function send_teams_test(frm) {
+	if (frm.is_dirty()) {
+		frappe.msgprint(__("Save the rule before sending a test."));
+		return;
+	}
+	const dialog = new frappe.ui.Dialog({
+		title: __("Send Teams Test"),
+		fields: [
+			{
+				fieldname: "docname",
+				fieldtype: "Link",
+				label: __("Document"),
+				options: frm.doc.reference_doctype,
+				description: __("Leave empty to use the latest {0}.", [__(frm.doc.reference_doctype)]),
+			},
+		],
+		primary_action_label: __("Send"),
+		primary_action(values) {
+			dialog.hide();
+			frappe
+				.call({
+					method: "notification_engine.teams.api.send_test_for_rule",
+					args: { rule: frm.doc.name, docname: values.docname },
+					freeze: true,
+				})
+				.then((r) => {
+					const res = r.message || {};
+					if (res.condition_error) {
+						frappe.show_alert({ message: __("Condition error: {0}", [res.condition_error]), indicator: "red" });
+					} else if (res.condition === false) {
+						frappe.show_alert(
+							{
+								message: __("Note: the condition is false for {0}, so a real event would not send.", [res.docname]),
+								indicator: "orange",
+							},
+							8
+						);
+					}
+					notification_engine.teams.wait_for_logs(res.logs);
+				});
+		},
+	});
+	dialog.show();
 }
 
 /**
@@ -92,7 +214,10 @@ function load_designation_options(frm) {
 function refresh_dynamic_dropdowns(frm, clear_value) {
 	populate_field_dropdown(frm, "project_field", (df) => df.fieldtype === "Link" && df.options === "Project", clear_value);
 	populate_field_dropdown(frm, "department_field", (df) => df.fieldtype === "Link" && df.options === "Department", clear_value);
-	populate_field_dropdown(frm, "document_field", (df) => df.fieldtype === "Link" && df.options === "User", clear_value);
+	populate_field_dropdown(frm, "document_field", (df) => df.fieldtype === "Link" && df.options === "User", clear_value, [
+		"owner",
+		"modified_by",
+	]);
 	populate_field_dropdown(frm, "date_field", (df) => ["Date", "Datetime"].includes(df.fieldtype), clear_value);
 	populate_field_dropdown(
 		frm,
@@ -102,7 +227,7 @@ function refresh_dynamic_dropdowns(frm, clear_value) {
 	);
 }
 
-function populate_field_dropdown(frm, fieldname, filter_fn, clear_value) {
+function populate_field_dropdown(frm, fieldname, filter_fn, clear_value, extra_options = []) {
 	if (!frm.doc.reference_doctype) {
 		frm.set_df_property(fieldname, "options", []);
 		if (clear_value) frm.set_value(fieldname, "");
@@ -114,7 +239,7 @@ function populate_field_dropdown(frm, fieldname, filter_fn, clear_value) {
 		const meta = frappe.get_meta(frm.doc.reference_doctype);
 		// meta.fields includes custom fields (Customize Form additions) the
 		// same way it includes standard ones - no separate handling needed.
-		const options = (meta.fields || []).filter(filter_fn).map((df) => df.fieldname);
+		const options = (meta.fields || []).filter(filter_fn).map((df) => df.fieldname).concat(extra_options);
 
 		frm.set_df_property(fieldname, "options", [""].concat(options).join("\n"));
 

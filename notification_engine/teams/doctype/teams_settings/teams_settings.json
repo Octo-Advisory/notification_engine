@@ -1,0 +1,214 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-10-06 13:36:04.956645",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "site_url",
+  "column_break_general",
+  "queue_name",
+  "section_rate",
+  "default_rate_per_second",
+  "default_burst",
+  "column_break_rate",
+  "max_retries",
+  "failure_alert_threshold",
+  "section_logs",
+  "log_retention_days",
+  "section_bot",
+  "bot_enabled",
+  "bot_app_id",
+  "bot_tenant_id",
+  "bot_client_secret",
+  "column_break_bot",
+  "bot_secret_expiry",
+  "bot_name",
+  "messaging_endpoint",
+  "bot_service_url"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "description": "Global switch. When off, no rule runs and nothing is sent.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "description": "Base URL for 'Open in Frappe' links. Leave empty to use this site's URL.",
+   "fieldname": "site_url",
+   "fieldtype": "Data",
+   "label": "Site URL",
+   "options": "URL"
+  },
+  {
+   "fieldname": "column_break_general",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "teams",
+   "description": "Background queue for delivery jobs. Falls back to 'default' when no worker listens on this queue.",
+   "fieldname": "queue_name",
+   "fieldtype": "Data",
+   "label": "Queue"
+  },
+  {
+   "fieldname": "section_rate",
+   "fieldtype": "Section Break",
+   "label": "Rate Limits and Retries"
+  },
+  {
+   "default": "0.07",
+   "description": "Messages per second per destination. Workflows' Flow bot allows about 25 posts per 5 minutes per connection; 0.07 with burst 4 sends about 4 a minute and stays under that.",
+   "fieldname": "default_rate_per_second",
+   "fieldtype": "Float",
+   "label": "Default Rate per Second",
+   "precision": "3"
+  },
+  {
+   "default": "4",
+   "fieldname": "default_burst",
+   "fieldtype": "Int",
+   "label": "Default Burst",
+   "description": "Messages that can be sent at once before the rate applies."
+  },
+  {
+   "fieldname": "column_break_rate",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "5",
+   "fieldname": "max_retries",
+   "fieldtype": "Int",
+   "label": "Max Retries"
+  },
+  {
+   "default": "5",
+   "description": "Alert Teams Admins after this many consecutive failures on a destination.",
+   "fieldname": "failure_alert_threshold",
+   "fieldtype": "Int",
+   "label": "Failure Alert Threshold"
+  },
+  {
+   "fieldname": "section_logs",
+   "fieldtype": "Section Break",
+   "label": "Logs"
+  },
+  {
+   "default": "30",
+   "fieldname": "log_retention_days",
+   "fieldtype": "Int",
+   "label": "Log Retention (Days)"
+  },
+  {
+   "fieldname": "section_bot",
+   "fieldtype": "Section Break",
+   "label": "Teams Bot"
+  },
+  {
+   "fieldname": "bot_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Teams Bot",
+   "default": "0",
+   "description": "Personal messages, chats and channels through your Azure Bot, and buttons that act on Frappe."
+  },
+  {
+   "fieldname": "bot_app_id",
+   "fieldtype": "Data",
+   "label": "App (Client) ID",
+   "depends_on": "eval:doc.bot_enabled",
+   "mandatory_depends_on": "eval:doc.bot_enabled"
+  },
+  {
+   "fieldname": "bot_tenant_id",
+   "fieldtype": "Data",
+   "label": "Tenant ID",
+   "depends_on": "eval:doc.bot_enabled",
+   "mandatory_depends_on": "eval:doc.bot_enabled"
+  },
+  {
+   "fieldname": "bot_client_secret",
+   "fieldtype": "Password",
+   "label": "Client Secret",
+   "length": 255,
+   "depends_on": "eval:doc.bot_enabled",
+   "mandatory_depends_on": "eval:doc.bot_enabled",
+   "description": "Stored encrypted. Never shown again after saving."
+  },
+  {
+   "fieldname": "column_break_bot",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bot_secret_expiry",
+   "fieldtype": "Date",
+   "label": "Secret Expiry Date",
+   "depends_on": "eval:doc.bot_enabled",
+   "description": "Teams Admins are warned 30 days before."
+  },
+  {
+   "fieldname": "bot_name",
+   "fieldtype": "Data",
+   "label": "Bot Name",
+   "default": "ERP Notifications",
+   "depends_on": "eval:doc.bot_enabled",
+   "description": "Shown in Teams. Used in the Teams app package."
+  },
+  {
+   "fieldname": "messaging_endpoint",
+   "fieldtype": "Data",
+   "label": "Messaging Endpoint",
+   "read_only": 1,
+   "depends_on": "eval:doc.bot_enabled",
+   "description": "Set this as the Messaging endpoint of the Azure Bot. It must be public HTTPS."
+  },
+  {
+   "fieldname": "bot_service_url",
+   "fieldtype": "Data",
+   "label": "Fallback Service URL",
+   "default": "https://smba.trafficmanager.net/teams/",
+   "depends_on": "eval:doc.bot_enabled",
+   "description": "Used only until Teams tells the bot its regional service URL."
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-10-06 13:36:04.956645",
+ "modified_by": "Administrator",
+ "module": "Teams",
+ "name": "Teams Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Teams Admin",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

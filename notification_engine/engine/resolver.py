@@ -1,3 +1,5 @@
+import json
+
 import frappe
 
 
@@ -43,6 +45,12 @@ def _get_candidates(rule, doc):
 	if rule.recipient_source == "Designation":
 		return users_with_designation(rule.designation)
 
+	if rule.recipient_source == "Department":
+		return users_with_employee_value("department", rule.department)
+
+	if rule.recipient_source == "Assigned To":
+		return _assignees(doc)
+
 	if rule.recipient_source == "Workflow Roles (Project + Department)":
 		from notification_engine.engine.role_resolver import resolve_via_project_department
 
@@ -71,19 +79,35 @@ def _get_preferences(rule_name, users):
 
 
 def users_with_designation(designation):
-	"""Users linked to an active Employee with this Designation.
+	return users_with_employee_value("designation", designation)
 
-	Employee / Designation come from ERPNext, which is optional for this app:
-	on a site without them this simply resolves to nobody (the rule form
-	refuses to save such a rule in the first place).
+
+def users_with_employee_value(fieldname, value):
+	"""Users linked to an active Employee whose `fieldname` (designation /
+	department) is `value`.
+
+	Employee comes from ERPNext, which is optional for this app: on a site
+	without it this simply resolves to nobody (the rule form refuses to save
+	such a rule in the first place).
 	"""
-	if not designation or not frappe.db.exists("DocType", "Employee"):
+	if not value or not frappe.db.exists("DocType", "Employee"):
 		return []
 
 	users = frappe.get_all(
 		"Employee",
-		filters={"designation": designation, "status": "Active", "user_id": ["is", "set"]},
+		filters={fieldname: value, "status": "Active", "user_id": ["is", "set"]},
 		pluck="user_id",
 		order_by="name asc",
 	)
 	return list(dict.fromkeys(users))
+
+
+def _assignees(doc):
+	"""Users the document is assigned to (Frappe's "Assigned To" / ToDo)."""
+	raw = doc.get("_assign")
+	if raw is None and not doc.is_new():
+		raw = frappe.db.get_value(doc.doctype, doc.name, "_assign")
+	try:
+		return [u for u in json.loads(raw or "[]") if u]
+	except (TypeError, ValueError):
+		return []

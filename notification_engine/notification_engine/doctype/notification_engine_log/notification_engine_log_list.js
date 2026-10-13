@@ -10,5 +10,8 @@ frappe.listview_settings["Notification Engine Log"] = {
 		if (doc.status === "Skipped") {
 			return [__("Skipped"), "orange", "status,=,Skipped"];
 		}
+		if (doc.status === "Queued") {
+			return [__("Queued"), "blue", "status,=,Queued"];
+		}
 	},
 };

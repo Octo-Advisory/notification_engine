@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-10-07 12:37:31.508353",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "teams_name",
+  "teams_email",
+  "installed",
+  "column_break_main",
+  "aad_object_id",
+  "teams_user_id",
+  "last_seen",
+  "section_conversation",
+  "conversation_id",
+  "service_url"
+ ],
+ "fields": [
+  {
+   "description": "Filled automatically when the Teams email matches a Frappe user. You can set it by hand.",
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Frappe User",
+   "options": "User",
+   "unique": 1
+  },
+  {
+   "fieldname": "teams_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Teams Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "teams_email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Teams Email / UPN",
+   "options": "Email"
+  },
+  {
+   "default": "0",
+   "description": "Personal messages need the Teams app installed for this user.",
+   "fieldname": "installed",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "App Installed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "aad_object_id",
+   "fieldtype": "Data",
+   "label": "Entra Object ID",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "description": "Starts with 29:",
+   "fieldname": "teams_user_id",
+   "fieldtype": "Data",
+   "label": "Teams User ID",
+   "length": 255,
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_seen",
+   "fieldtype": "Datetime",
+   "label": "Last Seen",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_conversation",
+   "fieldtype": "Section Break",
+   "label": "Personal Chat"
+  },
+  {
+   "fieldname": "conversation_id",
+   "fieldtype": "Data",
+   "label": "Conversation ID",
+   "length": 255,
+   "read_only": 1
+  },
+  {
+   "fieldname": "service_url",
+   "fieldtype": "Data",
+   "label": "Service URL",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-07 12:37:31.508353",
+ "modified_by": "Administrator",
+ "module": "Teams",
+ "name": "Teams User Map",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Teams Admin",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "teams_name",
+ "track_changes": 1
+}

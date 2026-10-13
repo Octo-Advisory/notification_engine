@@ -2,3 +2,9 @@ notification_engine.egg-info/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Teams dashboard build output (bench build)
+node_modules
+notification_engine/public/frontend
+notification_engine/www/teams-notify.html
+frontend/dist-demo

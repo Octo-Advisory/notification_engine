@@ -1,0 +1,238 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:destination_name",
+ "creation": "2026-10-06 13:36:05.001247",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "destination_name",
+  "destination_type",
+  "column_break_main",
+  "enabled",
+  "section_webhook",
+  "webhook_url",
+  "section_bot",
+  "conversation_type",
+  "conversation_name",
+  "conversation_id",
+  "column_break_bot",
+  "service_url",
+  "team_id",
+  "channel_id",
+  "installed_by",
+  "section_rate",
+  "rate_per_second",
+  "column_break_rate",
+  "burst",
+  "section_status",
+  "last_success",
+  "consecutive_failures",
+  "column_break_status",
+  "last_error_at",
+  "last_error"
+ ],
+ "fields": [
+  {
+   "fieldname": "destination_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Destination Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Webhook",
+   "fieldname": "destination_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Destination Type",
+   "options": "Webhook\nWebhook (Personal via Flow bot)\nBot Conversation\nBot (Personal Chat)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "section_webhook",
+   "fieldtype": "Section Break",
+   "label": "Webhook",
+   "depends_on": "eval:['Webhook','Webhook (Personal via Flow bot)'].includes(doc.destination_type)"
+  },
+  {
+   "description": "URL from the Power Automate trigger 'When a Teams webhook request is received'. Stored encrypted.",
+   "fieldname": "webhook_url",
+   "fieldtype": "Password",
+   "label": "Workflows Webhook URL",
+   "length": 1000
+  },
+  {
+   "fieldname": "section_bot",
+   "fieldtype": "Section Break",
+   "label": "Teams Bot",
+   "depends_on": "eval:doc.destination_type=='Bot Conversation'"
+  },
+  {
+   "fieldname": "conversation_type",
+   "fieldtype": "Select",
+   "label": "Conversation Type",
+   "options": "\ngroupChat\nchannel",
+   "read_only": 1
+  },
+  {
+   "fieldname": "conversation_name",
+   "fieldtype": "Data",
+   "label": "Chat / Channel Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "conversation_id",
+   "fieldtype": "Data",
+   "label": "Conversation ID",
+   "read_only": 1,
+   "length": 255
+  },
+  {
+   "fieldname": "column_break_bot",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "service_url",
+   "fieldtype": "Data",
+   "label": "Service URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "team_id",
+   "fieldtype": "Data",
+   "label": "Team ID",
+   "read_only": 1,
+   "length": 255
+  },
+  {
+   "fieldname": "channel_id",
+   "fieldtype": "Data",
+   "label": "Channel ID",
+   "read_only": 1,
+   "length": 255
+  },
+  {
+   "fieldname": "installed_by",
+   "fieldtype": "Data",
+   "label": "Added By (Teams)",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_rate",
+   "fieldtype": "Section Break",
+   "label": "Rate Limit"
+  },
+  {
+   "description": "Leave 0 to use the Teams Settings default. Workflows' Flow bot allows about 25 posts per 5 minutes.",
+   "fieldname": "rate_per_second",
+   "fieldtype": "Float",
+   "label": "Rate per Second",
+   "precision": "3"
+  },
+  {
+   "fieldname": "column_break_rate",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Leave 0 to use the Teams Settings default.",
+   "fieldname": "burst",
+   "fieldtype": "Int",
+   "label": "Burst"
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "last_success",
+   "fieldtype": "Datetime",
+   "label": "Last Success",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "consecutive_failures",
+   "fieldtype": "Int",
+   "label": "Consecutive Failures",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_error_at",
+   "fieldtype": "Datetime",
+   "label": "Last Error At",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "no_copy": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-06 13:36:05.001247",
+ "modified_by": "Administrator",
+ "module": "Teams",
+ "name": "Teams Destination",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Teams Admin",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "destination_name",
+ "track_changes": 1
+}

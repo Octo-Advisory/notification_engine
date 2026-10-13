@@ -4,4 +4,5 @@ recursive-include notification_engine *.txt
 recursive-include notification_engine *.html
 recursive-include notification_engine *.css
 recursive-include notification_engine *.js
+recursive-include notification_engine *.png
 recursive-exclude *.pyc

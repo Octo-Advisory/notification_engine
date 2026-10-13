@@ -1,0 +1,31 @@
+{
+	"$schema": "https://developer.microsoft.com/json-schemas/teams/v1.30/MicrosoftTeams.schema.json",
+	"manifestVersion": "1.30",
+	"version": "{{ version }}",
+	"id": "{{ app_id }}",
+	"developer": {
+		"name": "{{ developer_name }}",
+		"websiteUrl": "{{ site_url }}",
+		"privacyUrl": "{{ site_url }}",
+		"termsOfUseUrl": "{{ site_url }}"
+	},
+	"name": {"short": "{{ short_name }}", "full": "{{ full_name }}"},
+	"description": {
+		"short": "Notifications and approvals from {{ short_name }}.",
+		"full": "Sends notifications from {{ site_host }} to chats, channels and personal messages, with buttons that act on ERP records."
+	},
+	"icons": {"color": "color.png", "outline": "outline.png"},
+	"accentColor": "#4B53BC",
+	"supportsChannelFeatures": "tier1",
+	"bots": [
+		{
+			"botId": "{{ app_id }}",
+			"scopes": ["personal", "team", "groupChat"],
+			"supportsFiles": false,
+			"isNotificationOnly": false
+		}
+	],
+	"permissions": ["identity", "messageTeamMembers"],
+	"validDomains": ["{{ site_host }}"],
+	"webApplicationInfo": {"id": "{{ app_id }}", "resource": "api://botid-{{ app_id }}"}
+}

@@ -1,6 +1,10 @@
 # Notification Engine
 
-A generic, user-level notification engine for Frappe / ERPNext.
+A generic, user-level notification engine for Frappe / ERPNext, with
+**Email, System Notification, SMS and Microsoft Teams** in one app. One
+**Notification Rule** decides *when* (DocType + event + condition), *who*
+(specific users, role, document field, designation, department, assignee,
+workflow approver) and sends on every channel you tick, all at once.
 
 Solves the core problem with ERPNext's built-in workflow notifications:
 they target a **Role**, so every user who happens to share that role gets
@@ -16,13 +20,58 @@ enable/disable switches at three levels:
    user opt out of a rule for themselves (self-service, mirrors Frappe's own
    Notification Settings UX).
 
+Microsoft Teams (formerly the separate Teams Notify app) is built in: cards
+to group chats, channels and individual people through a Workflows webhook
+or your own Teams bot, with **Approve / Reject** buttons, digests, a
+reliable background queue and an admin dashboard at `/teams-notify`. See
+[Microsoft Teams](#microsoft-teams).
+
+Works on Frappe v15 (ERPNext optional: only the Designation, Department and
+Workflow Roles recipient sources and SMS mobile numbers need it).
+
+## Contents
+
+- [Installation](#installation)
+- [Setting up your first rule](#setting-up-your-first-rule)
+- [Channels](#channels)
+- [Microsoft Teams](#microsoft-teams)
+- [Auditing deliveries](#auditing-deliveries)
+- [Migrating from core ERPNext Notifications](#migrating-from-core-erpnext-notifications)
+- [Moving from the Teams Notify app](#moving-from-the-teams-notify-app)
+- [Extending](#extending)
+- [Workflow Roles (Project + Department)](#workflow-roles-project--department)
+- [Updating, troubleshooting and development](#updating)
+
 ## Installation
 
+Requirements: Frappe v15 on a bench you can run commands on, and Node 18+
+with yarn (`bench build` builds the Teams dashboard).
+
 ```bash
-bench get-app notification_engine /path/to/this/folder
+cd ~/frappe-bench
+bench get-app https://github.com/Octo-Advisory/notification_engine.git
 bench --site your-site install-app notification_engine
 bench --site your-site migrate
+bench build --app notification_engine
 ```
+
+Then restart so web and background workers load the new code
+(`sudo supervisorctl restart all` in production, or restart `bench start`).
+
+Notifications are sent by background workers and the scheduler (Teams
+retries and digests run every minute / hour / day, date-based rules daily):
+
+```bash
+bench --site your-site enable-scheduler
+```
+
+Installing also creates the **Teams Admin** role (give it to people who
+manage Teams destinations; System Managers already have access) and an
+internal, role-less bot user (`teams-bot@teams-notify.invalid`) used only for
+validated requests from Microsoft Teams.
+
+Already using the standalone **teams_notify** app on the site? Read
+[Moving from the Teams Notify app](#moving-from-the-teams-notify-app) first.
 
 ## Setting up your first rule
 
@@ -42,11 +91,15 @@ bench --site your-site migrate
    - *Workflow Roles (Project + Department)* - for workflows where the
      right person depends on which Project/Department the document
      belongs to (see below).
-   - *Designation* - every active Employee with that Designation who is
-     linked to a User. Needs ERPNext (Employee / Designation); on a site
-     without it the rule cannot be saved with this source.
-4. Tick the channels you want: System Notification, Email, SMS - and
-   Teams, when the Teams Notify app is installed too (see Channels).
+   - *Assigned To* - the users the document is assigned to.
+   - *Designation* / *Department* - every active Employee with that
+     Designation / in that Department who is linked to a User. Needs ERPNext
+     (Employee); on a site without it the rule cannot be saved with these
+     sources.
+4. Tick the channels you want: System Notification, Email, SMS and
+   **Microsoft Teams** - one rule sends on all of them at once. A Teams
+   rule may also post only to Teams chats / channels, with no individual
+   recipients at all.
 5. If Email is on, choose a **Delivery Mode**:
    - *Individual Emails* - one send per recipient (uses one provider credit per person; use only when credits aren't a concern or true 1:1 messaging is needed).
    - *Single Email (To)* - one send total, all recipients visible to each other in To.
@@ -57,7 +110,12 @@ bench --site your-site migrate
    include that row.
 7. Write **Subject** and **Message** (Jinja templates; the document is
    available as `doc`, e.g. `{{ doc.name }}`, `{{ doc.grand_total }}`).
-8. Tick **Enabled** and save.
+   Teams uses them too unless you write a separate Teams Title / Body.
+8. If Teams is on, fill the **Microsoft Teams** section (see below).
+9. Tick **Enabled** and save.
+
+Data Import, patches and migrate do not notify anyone, unless a rule has
+**Send During Data Import** ticked.
 
 ## Channels
 
@@ -66,7 +124,110 @@ bench --site your-site migrate
 | System Notification | nothing extra - uses Frappe's own Notification Log |
 | Email | User must have an email address (standard) |
 | SMS | `Notification Engine Settings` gateway config; mobile number resolved from `Employee.cell_number`, falling back to `Contact.mobile_no` |
-| Teams | The [Teams Notify](https://github.com/Octo-Advisory/Teams-Notify) app on the same site. It adds a **Send Teams Message** tick and a Teams section to this form, and sends through its own queue. This app works the same without it. |
+| Microsoft Teams | **Teams Settings → Enabled**, and at least one **Teams Destination** (a Workflows webhook or the Teams bot). See [Microsoft Teams](#microsoft-teams). |
+
+## Microsoft Teams
+
+### Turn it on
+
+1. Open **Teams Settings** (`/app/teams-settings`) and tick **Enabled** - the
+   global switch for every Teams message. The defaults are fine for most
+   sites: rate per second / burst per destination (Workflows webhooks
+   throttle at about 4 requests per second), retries on 429 / 5xx /
+   timeouts (after 5 s, 30 s, 2 min, 10 min, 1 h), a failure alert to Teams
+   Admins after N failures in a row, log retention, and **Site URL** if
+   "Open in Frappe" links must use a public address.
+2. Optional, for busy sites: a dedicated `teams` queue so Teams messages
+   never wait behind long reports. Add to `sites/common_site_config.json`:
+   `"workers": {"teams": {"timeout": 300}}`, then `bench setup supervisor`
+   (production) or `worker_teams: bench worker --queue teams` in the
+   `Procfile` (development). Until then messages use the `default` queue.
+3. Sign in as System Manager or Teams Admin and open the dashboard at
+   `https://your-site/teams-notify`: delivery stats, message log with
+   **Resend**, the Teams rules with **Test**, destinations with **Send
+   test**, linked Teams users, and a live **Install Guide** that ticks off
+   each setup step against your site.
+
+### Choose a delivery method
+
+|  | Workflows webhook | Teams bot |
+|---|---|---|
+| Setup | About 10 minutes, inside Teams | Azure Bot + Entra app + Teams app upload |
+| Public HTTPS URL for Frappe | Not needed | Required |
+| Group chats and channels | Yes | Yes (add the bot to the chat) |
+| Personal messages | Yes, through the Flow bot | Yes, from your own branded bot |
+| Approve / Reject buttons | No | Yes, acting as the person who clicks |
+
+**Webhook.** Office 365 Connectors are retired; use a **Workflows** webhook.
+In the Teams chat or channel: **⋯ → Workflows → Send webhook alerts to a
+chat** (or channel), **Add workflow**, copy the URL (treat it like a
+password). In Frappe: **Teams Destination → New**, Type **Webhook**, paste
+the URL, save, then **Send test**. For personal messages without a bot,
+create a second flow (trigger *When a Teams webhook request is received*,
+Who can trigger *Anyone*; action *Post card in a chat or channel* as **Flow
+bot** in **Chat with Flow bot**, Recipient `triggerBody()?['recipient']`,
+Adaptive Card `triggerBody()?['attachments'][0]['content']`) and add it as a
+**Webhook (Personal via Flow bot)** destination.
+
+**Teams bot.** Usually done by IT:
+
+1. The site needs a public HTTPS address. The messaging endpoint is
+   `https://your-site/api/method/notification_engine.teams.bot.endpoint.receive`
+   (Teams Settings shows it with a copy button). Bots set up with the old
+   Teams Notify endpoint (`.../teams_notify.bot.endpoint.receive`) keep
+   working. For testing, a tunnel works: [docs/teams/BOT_TUNNEL_SETUP.md](docs/teams/BOT_TUNNEL_SETUP.md).
+2. **Entra ID → App registrations → New registration** (Single tenant).
+   Copy the Application (client) ID and Directory (tenant) ID, and create a
+   client secret (copy its *Value*, note its expiry).
+3. **Create a resource → Azure Bot**, Single Tenant, *Use existing app
+   registration*. Paste the messaging endpoint under **Configuration**, and
+   enable the **Microsoft Teams** channel (it should show *Healthy*).
+4. **Teams Settings → Teams Bot**: tick **Enable Teams Bot**, enter App ID,
+   Tenant ID, Client Secret, Secret Expiry Date and Bot Name, save, then
+   **Check Bot Connection** (`AADSTS7000215` = wrong secret,
+   `AADSTS700016` = App ID not in that tenant).
+5. Download the Teams app package once the Site URL is final (**Teams
+   Settings → Download Teams App Package**, or
+   `bench --site your-site notification-engine build-teams-manifest`) and
+   upload it in **Teams admin center → Teams apps → Manage apps**.
+6. Each person opens the app once (or it is pre-installed by policy): a
+   **Teams User Map** row links them to the Frappe user with the same email.
+   Add the app to a group chat or channel to get a **Bot Conversation**
+   destination (created turned off; turn it on and send a test). Personal
+   messages use the **Teams Bot (Personal)** destination.
+
+### Teams on a rule
+
+Tick **Microsoft Teams** under Channels; the **Microsoft Teams** section
+appears:
+
+- **Teams Chats / Channels** - one message per chat or channel, whoever the
+  recipients are.
+- **Personal Destination** - a personal message to each resolved recipient
+  (opt-outs apply), through a *Bot (Personal Chat)* or *Webhook (Personal via
+  Flow bot)* destination.
+- **Teams Title** / **Teams Body** - optional. Empty, the card uses the
+  Subject and the Message (converted from HTML to Markdown, which is what
+  Teams cards show). **Fields to Show** lists the only document fields that
+  leave Frappe. **Card Template** replaces all of it with your own Adaptive
+  Card JSON.
+- **Buttons** (Teams bot only) - workflow actions such as Approve / Reject
+  (or all of them), or *Set Value* buttons. Every click runs as the Frappe
+  user linked to the person who clicked, with their permissions.
+- **Cooldown** and an **Hourly / Daily Digest** for busy rules.
+- **Send Teams Test** (form button, or **Test** on the dashboard) renders the
+  card against the latest document and sends it with a `[TEST]` prefix.
+
+Every Teams message gets a **Teams Message Log** (Queued → Sent / Failed /
+Throttled, with the HTTP status, error and **Resend**) and a *Teams* row in
+the rule's **Notification Engine Log**, linked to it.
+
+Production checklist: scheduler and a worker for the Teams queue running;
+webhooks and the Azure Bot owned by a service account; **Secret Expiry
+Date** set (Teams Admins are warned 30 days before the bot secret expires);
+the Teams Admin role given to whoever should get failure alerts. The full
+manual test plan is in [docs/teams/TESTING.md](docs/teams/TESTING.md) and the
+technical specification in [docs/teams/SPEC.md](docs/teams/SPEC.md).
 
 ## Auditing deliveries
 
@@ -75,14 +236,17 @@ than storing a second copy of every email/notification body, **Notification
 Engine Log** keeps a thin record (rule, channel, status, recipient) and
 **links to Frappe's own native record** for the full detail:
 
-- **Email** → links to the **Communication** record `frappe.sendmail()`
-  already creates automatically - the exact same one visible in the
+- **Email** → links to the **Communication** record created for the email
+  (the same way core Notification does it) - the one visible in the
   reference document's Timeline, with full body, delivery status, and any
   tracked opens/replies.
 - **System Notification** → links to the **Notification Log** record - the
   actual entry shown in the recipient's bell icon.
 - **SMS** → Frappe has no native record for this, so Subject/Content are
   stored directly on our log for that channel only.
+- **Teams** → links to the **Teams Message Log**. Teams delivers in the
+  background, so this row says *Queued*; the Teams Message Log has the final
+  Sent / Failed status.
 
 Every log row also always shows Status (Success / Failed / Skipped,
 color-coded in the list view) and an Error Message when something went
@@ -102,6 +266,34 @@ Rule for each one, so you can review, populate real recipients, and enable
 them deliberately rather than everything going live at once. It does not
 touch or delete the original core records.
 
+## Moving from the Teams Notify app
+
+Notification Engine contains everything the standalone `teams_notify` app
+did, with the same Teams DocTypes, so a site can switch without losing
+destinations, settings, logs or rules:
+
+```bash
+bench --site your-site backup
+bench --site your-site remove-from-installed-apps teams_notify   # keeps its tables and data
+bench --site your-site migrate                                    # with this app installed
+bench build --app notification_engine
+```
+
+Migrate refuses to run while `teams_notify` is still installed on the site.
+The `migrate_teams_notify_rules` patch turns every **Teams Notification
+Rule** into a **Notification Rule** with the same name and Microsoft Teams
+ticked, so message logs, digests and buttons on cards already posted in
+Teams keep working; then it removes the old rule DocTypes. Rules whose
+recipients can't be expressed with one Recipient Source (mixed recipient
+rows, or a document field holding plain email addresses) are created
+**disabled** with a comment saying what to finish. Two differences to know:
+
+- A *Role* recipient becomes *Role → Expand To Users*: a snapshot of the
+  role's users at migration time (use **Sync From Role** to refresh),
+  instead of the role's members at send time.
+- Bots registered with the old messaging endpoint keep working; update it in
+  the Azure Bot when convenient.
+
 ## Extending
 
 - New channels from another app: register a function in that app's
@@ -116,7 +308,7 @@ touch or delete the original core records.
   resolved (opt-outs applied) and the subject/message already rendered. The
   function decides from the rule whether to send (e.g. a Custom Field
   checkbox it adds) and logs its own deliveries. A failure is written to the
-  Error Log and never blocks other channels. Teams Notify uses this hook.
+  Error Log and never blocks other channels.
 - New built-in channels: drop a `send(rule, doc, users, subject, message)`
   function into `notification_engine/channels/`, and call it from
   `engine/dispatcher.py`.
@@ -266,3 +458,66 @@ If you also need a fixed global recipient regardless of project/department
 (e.g. always notify the CEO), that's simplest as a **separate** Notification
 Rule on the same doctype/event using "Role → Expand To Users" or "Specific
 Users" - both rules fire independently for the same document.
+
+## Updating
+
+```bash
+cd ~/frappe-bench
+bench update --apps notification_engine   # or: cd apps/notification_engine && git pull
+bench --site your-site migrate
+bench build --app notification_engine
+sudo supervisorctl restart all            # production
+```
+
+Reload the Teams dashboard with Ctrl+Shift+R if it still shows the old version.
+
+## Troubleshooting
+
+| Symptom | What to check |
+|---|---|
+| Nothing happens on save | Rule enabled? Condition true? Recipients resolve to someone (or Teams chats set)? Was it a Data Import (see *Send During Data Import*)? For Teams: Teams Settings enabled, and does **Send Teams Test** work? |
+| Teams messages stay **Queued** | Background workers and scheduler running? `sudo supervisorctl status` |
+| **Throttled** for a long time | Normal under load: webhooks accept only a few posts per second. Use a Digest for busy rules. |
+| Sent, but no card in Teams | Check the flow's run history in Power Automate. |
+| Webhook fails with 401 / 404 | The workflow was deleted or turned off, or its owner left. Create a new one and update the destination. |
+| Bot never replies, no Teams User Map rows | Messaging endpoint public over HTTPS and identical to the one in Teams Settings? Teams channel *Healthy* on the Azure Bot? |
+| "Your Teams account isn't linked to ERP" | The Teams User Map row has no Frappe User: set it. |
+| `/teams-notify` is blank or 404 | `bench build --app notification_engine` and restart. |
+
+Server-side details are in `logs/notification_engine.log` and Frappe's
+**Error Log** (`/app/error-log`).
+
+## Development
+
+```
+notification_engine/
+├── engine/          rule matching (events), recipients, conditions, dispatcher
+├── channels/        System, Email, SMS
+├── teams/           Microsoft Teams: rules.py (the Teams channel), cards/, delivery/
+│                    (queue, webhook and bot senders, rate limit, digest), bot/ (endpoint,
+│                    JWT validation, card actions), teams_manifest/, dashboard.py, doctype/
+├── notification_engine/doctype/   Notification Rule, Log, User Preference, Settings
+├── patches/         core Notification and Teams Notify migrations
+└── www/             serves the Teams dashboard at /teams-notify
+frontend/            Teams dashboard (React, Vite, Tailwind, frappe-react-sdk)
+docs/teams/          Teams specification, manual test plan, bot tunnel setup
+```
+
+**Tests** (they mock every HTTP call; nothing is sent to Microsoft):
+
+```bash
+bench --site your-site set-config allow_tests true
+bench --site your-site run-tests --app notification_engine
+```
+
+**Dashboard.** `bench build --app notification_engine` builds `frontend/`
+into `notification_engine/public/frontend` (not committed). With hot reload:
+
+```bash
+cd ~/frappe-bench/apps/notification_engine/frontend
+yarn install
+FRAPPE_TARGET=http://127.0.0.1:8000 FRAPPE_SITE=your-site yarn dev   # http://localhost:8082/teams-notify
+```
+
+`yarn dev:demo` / `yarn build:demo` run the same dashboard on sample data
+(`frontend/src/demo/`), with no Frappe site.

@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+/* Theme tokens. Light by default; dark follows the OS setting. Teams-like indigo accent. */
+:root {
+  color-scheme: light;
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #f0f0f4;
+  --border: #e3e3ea;
+  --text: #1b1b22;
+  --text-2: #55556a;
+  --text-3: #85859a;
+  --accent: #5b5fc7;
+  --accent-hover: #4f52b2;
+  --accent-soft: #ebebfa;
+  --accent-text: #444791;
+  --good: #0ca30c;
+  --good-soft: #e6f6e6;
+  --good-text: #0b6a0b;
+  --warn: #fab219;
+  --warn-soft: #fff5de;
+  --warn-text: #8a5a00;
+  --bad: #d03b3b;
+  --bad-soft: #fcebeb;
+  --bad-text: #a42626;
+  --muted-bar: #c9c9d4;
+  --code-bg: #1e1e2a;
+  --code-text: #e6e6f0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #141418;
+    --surface: #1d1d23;
+    --surface-2: #26262e;
+    --border: #33333d;
+    --text: #f2f2f6;
+    --text-2: #b4b4c4;
+    --text-3: #85859a;
+    --accent: #7f85f5;
+    --accent-hover: #9297f7;
+    --accent-soft: #2b2c4a;
+    --accent-text: #b8bbfa;
+    --good-soft: #15301a;
+    --good-text: #6fd46f;
+    --warn-soft: #3a2f12;
+    --warn-text: #f5c35a;
+    --bad-soft: #3a1c1c;
+    --bad-text: #f08a8a;
+    --muted-bar: #4a4a58;
+    --code-bg: #0e0e13;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-ink-3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-good-text: var(--good-text);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-text: var(--warn-text);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-bad-text: var(--bad-text);
+  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+}
+
+html, body { background: var(--bg); color: var(--text); }
+body { margin: 0; font-family: var(--font-sans); font-size: 14px; -webkit-font-smoothing: antialiased; }
+
+/* Component classes live in a layer so Tailwind utilities (pl-8, p-0, …) can override them. */
+@layer components {
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border-radius: 6px; font-weight: 600; font-size: 13px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap;
+  transition: background .12s, border-color .12s;
+}
+.btn:hover { background: var(--surface-2); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-sm { height: 26px; padding: 0 8px; font-size: 12px; }
+.btn-ghost { border-color: transparent; background: transparent; }
+
+.input {
+  height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 13px; outline: none;
+}
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-2); padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.tbl td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl tbody tr:hover { background: var(--surface-2); }
+
+.code {
+  background: var(--code-bg); color: var(--code-text); font-family: var(--font-mono);
+  font-size: 12.5px; line-height: 1.6; border-radius: 8px; padding: 12px 14px; overflow-x: auto;
+  white-space: pre;
+}
+.kbd { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+.prose-guide p { margin: 6px 0; color: var(--text-2); line-height: 1.6; }
+.prose-guide ol { list-style: decimal; padding-left: 20px; margin: 8px 0; }
+.prose-guide ul { list-style: disc; padding-left: 20px; margin: 8px 0; }
+.prose-guide li { margin: 5px 0; line-height: 1.6; color: var(--text-2); }
+.prose-guide li::marker { color: var(--text-3); }
+.prose-guide b, .prose-guide strong { color: var(--text); font-weight: 600; }
+.prose-guide a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+
+.toggle { position: relative; width: 34px; height: 20px; border-radius: 999px; background: var(--muted-bar); transition: background .15s; cursor: pointer; border: 0; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.toggle[aria-checked="true"] { background: var(--accent); }
+.toggle[aria-checked="true"]::after { transform: translateX(14px); }
+.toggle:disabled { opacity: .5; cursor: default; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+}

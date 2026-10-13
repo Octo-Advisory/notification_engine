@@ -1,0 +1,107 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-10-07 12:53:06.957067",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "button_type",
+  "workflow_action",
+  "label",
+  "style",
+  "column_break_1",
+  "fieldname",
+  "value",
+  "ask_comment",
+  "comment_required"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "default": "Workflow Action",
+   "fieldname": "button_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Type",
+   "options": "Workflow Action\nSet Value",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "depends_on": "eval:doc.button_type=='Workflow Action'",
+   "description": "The action as named in the Workflow, e.g. Approve.",
+   "fieldname": "workflow_action",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Workflow Action",
+   "mandatory_depends_on": "eval:doc.button_type=='Workflow Action'"
+  },
+  {
+   "columns": 2,
+   "description": "Defaults to the action name.",
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Button Label"
+  },
+  {
+   "columns": 1,
+   "default": "default",
+   "fieldname": "style",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Style",
+   "options": "default\npositive\ndestructive"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.button_type=='Set Value'",
+   "fieldname": "fieldname",
+   "fieldtype": "Select",
+   "label": "Field to Set",
+   "mandatory_depends_on": "eval:doc.button_type=='Set Value'"
+  },
+  {
+   "depends_on": "eval:doc.button_type=='Set Value'",
+   "description": "Stored as typed. Jinja allowed, e.g. {{ frappe.utils.nowdate() }}.",
+   "fieldname": "value",
+   "fieldtype": "Data",
+   "label": "Value"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "description": "Opens a text box in the card. The text is saved as a comment on the document.",
+   "fieldname": "ask_comment",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Ask for a Comment"
+  },
+  {
+   "default": "0",
+   "depends_on": "ask_comment",
+   "fieldname": "comment_required",
+   "fieldtype": "Check",
+   "label": "Comment Required"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-07 12:53:06.957067",
+ "modified_by": "Administrator",
+ "module": "Teams",
+ "name": "Teams Rule Button",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

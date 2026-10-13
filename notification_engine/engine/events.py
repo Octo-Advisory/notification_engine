@@ -1,9 +1,9 @@
 import frappe
-from frappe.utils import add_days, getdate, nowdate
+from frappe.utils import add_days, nowdate
 
 from notification_engine.engine.condition import evaluate_condition
+from notification_engine.engine.dispatcher import dispatch, has_group_channel
 from notification_engine.engine.resolver import resolve_recipients
-from notification_engine.engine.dispatcher import dispatch
 
 RULE_CACHE_KEY = "notification_engine:rule_index"
 
@@ -17,8 +17,19 @@ OWN_DOCTYPES = frozenset(
 		"Notification User Preference",
 		"Notification Engine Settings",
 		"Notification Engine Log",
+		"Teams Settings",
+		"Teams Destination",
+		"Teams Rule Destination",
+		"Teams Rule Field",
+		"Teams Rule Button",
+		"Teams Message Log",
+		"Teams Digest Buffer",
+		"Teams User Map",
 	)
 )
+
+# Upper bound per date rule per day, so a misconfigured rule cannot flood anyone.
+MAX_DOCS_PER_DATE_RULE = 500
 
 EVENT_MAP = {
 	"after_insert": "After Insert",
@@ -73,10 +84,13 @@ def on_workflow_action(doc, method=None, **kwargs):
 
 
 def _should_skip(doc):
-	"""Own DocTypes, and bulk operations (data import, patches, install,
-	migrate) where a notification per row would flood every recipient."""
-	if doc.doctype in OWN_DOCTYPES:
-		return True
+	"""Saving the app's own records (including Teams logs) never triggers a rule."""
+	return doc.doctype in OWN_DOCTYPES
+
+
+def in_bulk_operation():
+	"""Data import, patches, install, migrate: a notification per row would flood
+	every recipient, so rules skip these unless "Send During Data Import" is on."""
 	return bool(
 		frappe.flags.in_import or frappe.flags.in_patch or frappe.flags.in_install or frappe.flags.in_migrate
 	)
@@ -105,7 +119,7 @@ def _process_value_change(doc):
 	within the same request for the same document, the check still only
 	runs once and can't send a duplicate notification.
 	"""
-	if _should_skip(doc) or doc.flags.get("_notification_engine_value_change_done"):
+	if _should_skip(doc):
 		return
 
 	rules = _get_matching_rules(doc.doctype, "Value Change")
@@ -116,7 +130,11 @@ def _process_value_change(doc):
 	if not doc_before_save:
 		return
 
-	doc.flags._notification_engine_value_change_done = True
+	# The flag holds the snapshot of the save it was set for: the same document
+	# object saved again later (a new snapshot) is checked again.
+	if doc.flags.get("_notification_engine_value_change_done") is doc_before_save:
+		return
+	doc.flags._notification_engine_value_change_done = doc_before_save
 
 	for rule in rules:
 		field = rule.value_changed_field
@@ -167,11 +185,14 @@ def _load_rule_index():
 
 
 def _run_rule(rule, doc):
+	if in_bulk_operation() and not rule.get("send_during_import"):
+		return
+
 	if not evaluate_condition(rule.condition, doc):
 		return
 
 	users = resolve_recipients(rule, doc)
-	if not users:
+	if not users and not has_group_channel(rule):
 		return
 
 	dispatch(rule, doc, users)
@@ -203,11 +224,17 @@ def _run_scheduled_rule(rule):
 		else add_days(nowdate(), -rule.days_offset)
 	)
 
+	# "between" on the same day also matches Datetime fields, not just Date.
+	filters = {rule.date_field: ("between", [target_date, target_date])}
+	if frappe.get_meta(rule.reference_doctype).is_submittable:
+		filters["docstatus"] = ("<", 2)
+
 	try:
 		matching_names = frappe.get_all(
 			rule.reference_doctype,
-			filters={rule.date_field: getdate(target_date)},
+			filters=filters,
 			pluck="name",
+			limit=MAX_DOCS_PER_DATE_RULE,
 		)
 	except Exception:
 		frappe.log_error(
@@ -218,4 +245,11 @@ def _run_scheduled_rule(rule):
 
 	for name in matching_names:
 		doc = frappe.get_doc(rule.reference_doctype, name)
-		_run_rule(rule, doc)
+		try:
+			_run_rule(rule, doc)
+		except Exception:
+			frappe.log_error(
+				title=f"Notification Engine: date rule {rule.name} failed",
+				reference_doctype=rule.reference_doctype,
+				reference_name=name,
+			)

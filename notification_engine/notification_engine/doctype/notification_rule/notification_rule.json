@@ -16,11 +16,13 @@
   "days_offset",
   "section_break_condition",
   "condition",
+  "send_during_import",
   "section_break_recipients",
   "recipient_source",
   "role",
   "document_field",
   "designation",
+  "department",
   "project_field",
   "department_field",
   "match_current_state_role",
@@ -32,6 +34,7 @@
   "send_email",
   "column_break_channels_2",
   "send_sms",
+  "send_teams",
   "section_break_email_delivery",
   "email_delivery_mode",
   "single_email_to_address",
@@ -40,7 +43,24 @@
   "bcc_recipients",
   "section_break_content",
   "subject",
-  "message"
+  "message",
+  "section_break_teams",
+  "teams_destinations",
+  "teams_personal_destination",
+  "column_break_teams",
+  "teams_title_color",
+  "teams_include_open_button",
+  "teams_cooldown_minutes",
+  "teams_digest",
+  "section_break_teams_content",
+  "teams_title",
+  "teams_body",
+  "teams_fields",
+  "section_break_teams_card_template",
+  "teams_card_template",
+  "section_break_teams_buttons",
+  "teams_all_workflow_actions",
+  "teams_buttons"
  ],
  "fields": [
   {
@@ -116,6 +136,13 @@
    "options": "Python"
   },
   {
+   "default": "0",
+   "fieldname": "send_during_import",
+   "fieldtype": "Check",
+   "label": "Send During Data Import",
+   "description": "Off: documents created or changed by Data Import, patches or migrate do not notify anyone."
+  },
+  {
    "fieldname": "section_break_recipients",
    "fieldtype": "Section Break",
    "label": "Recipients"
@@ -125,7 +152,7 @@
    "fieldname": "recipient_source",
    "fieldtype": "Select",
    "label": "Recipient Source",
-   "options": "Specific Users\nRole \u2192 Expand To Users\nDocument Field (User)\nWorkflow Roles (Project + Department)\nDesignation",
+   "options": "Specific Users\nRole \u2192 Expand To Users\nDocument Field (User)\nWorkflow Roles (Project + Department)\nDesignation\nAssigned To\nDepartment",
    "reqd": 1
   },
   {
@@ -139,7 +166,7 @@
   },
   {
    "depends_on": "eval:doc.recipient_source==\"Document Field (User)\"",
-   "description": "Fieldname on the reference doctype that stores a User link. Dropdown lists that doctype's Link fields pointing to User, including custom fields.",
+   "description": "Fieldname on the reference doctype that stores a User link (or owner / modified_by). Dropdown lists that doctype's Link fields pointing to User, including custom fields.",
    "fieldname": "document_field",
    "fieldtype": "Select",
    "label": "Document Field",
@@ -152,6 +179,14 @@
    "fieldname": "designation",
    "fieldtype": "Autocomplete",
    "label": "Designation"
+  },
+  {
+   "depends_on": "eval:doc.recipient_source==\"Department\"",
+   "mandatory_depends_on": "eval:doc.recipient_source==\"Department\"",
+   "description": "Notifies every active Employee in this Department who is linked to a User. Needs ERPNext (Employee / Department).",
+   "fieldname": "department",
+   "fieldtype": "Autocomplete",
+   "label": "Department"
   },
   {
    "depends_on": "eval:doc.recipient_source==\"Workflow Roles (Project + Department)\"",
@@ -191,7 +226,7 @@
    "read_only": 1
   },
   {
-   "depends_on": "eval:![\"Document Field (User)\",\"Workflow Roles (Project + Department)\",\"Designation\"].includes(doc.recipient_source)",
+   "depends_on": "eval:![\"Document Field (User)\",\"Workflow Roles (Project + Department)\",\"Designation\",\"Department\",\"Assigned To\"].includes(doc.recipient_source)",
    "description": "The final, resolved list of users. Untick \"Enabled\" on any row to silence that specific person without removing them.",
    "fieldname": "recipients",
    "fieldtype": "Table",
@@ -222,6 +257,11 @@
    "fieldname": "send_sms",
    "fieldtype": "Check",
    "label": "SMS"
+  },
+  {
+   "fieldname": "send_teams",
+   "fieldtype": "Check",
+   "label": "Microsoft Teams"
   },
   {
    "depends_on": "eval:doc.send_email",
@@ -279,12 +319,121 @@
    "reqd": 1
   },
   {
-   "description": "Jinja allowed. The reference document is available as 'doc'.",
+   "description": "Required for System Notification, Email and SMS. Teams uses it too, converted to Markdown, unless Teams Body is set.",
    "fieldname": "message",
    "fieldtype": "Code",
    "label": "Message",
+   "options": "Jinja"
+  },
+  {
+   "depends_on": "eval:doc.send_teams",
+   "fieldname": "section_break_teams",
+   "fieldtype": "Section Break",
+   "label": "Microsoft Teams"
+  },
+  {
+   "fieldname": "teams_destinations",
+   "fieldtype": "Table",
+   "label": "Teams Chats / Channels",
+   "options": "Teams Rule Destination",
+   "description": "Posts one message to each chat or channel, whoever the recipients are."
+  },
+  {
+   "fieldname": "teams_personal_destination",
+   "fieldtype": "Link",
+   "label": "Personal Destination",
+   "options": "Teams Destination",
+   "description": "Sends each recipient above a personal Teams message through this 'Bot (Personal Chat)' or 'Webhook (Personal via Flow bot)' destination."
+  },
+  {
+   "fieldname": "column_break_teams",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Default",
+   "fieldname": "teams_title_color",
+   "fieldtype": "Select",
+   "label": "Title Color",
+   "options": "Default\nAccent\nGood\nWarning\nAttention"
+  },
+  {
+   "default": "1",
+   "fieldname": "teams_include_open_button",
+   "fieldtype": "Check",
+   "label": "Include 'Open in Frappe' Button"
+  },
+  {
+   "fieldname": "teams_cooldown_minutes",
+   "fieldtype": "Int",
+   "label": "Cooldown (Minutes)",
+   "description": "Skip Teams messages for the same document within this many minutes. 0: no cooldown."
+  },
+  {
+   "default": "None",
+   "fieldname": "teams_digest",
+   "fieldtype": "Select",
+   "label": "Digest",
+   "options": "None\nHourly\nDaily",
+   "description": "Collect events and send one summary card per hour or day instead of one card per event."
+  },
+  {
+   "depends_on": "eval:doc.send_teams",
+   "fieldname": "section_break_teams_content",
+   "fieldtype": "Section Break",
+   "label": "Teams Card"
+  },
+  {
+   "fieldname": "teams_title",
+   "fieldtype": "Data",
+   "label": "Teams Title",
+   "description": "Jinja, e.g. {{ doc.name }} needs approval. Empty: the Subject."
+  },
+  {
+   "fieldname": "teams_body",
+   "fieldtype": "Code",
+   "label": "Teams Body",
    "options": "Jinja",
-   "reqd": 1
+   "description": "Markdown and Jinja. Empty: the Message, converted from HTML to Markdown."
+  },
+  {
+   "fieldname": "teams_fields",
+   "fieldtype": "Table",
+   "label": "Fields to Show",
+   "options": "Teams Rule Field",
+   "description": "Only these document fields are sent to Teams."
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.send_teams",
+   "fieldname": "section_break_teams_card_template",
+   "fieldtype": "Section Break",
+   "label": "Teams Card Template (Advanced)"
+  },
+  {
+   "fieldname": "teams_card_template",
+   "fieldtype": "Code",
+   "label": "Card Template",
+   "options": "Jinja",
+   "description": "A full Adaptive Card as JSON (Jinja). When set, it replaces Teams Title, Body and Fields."
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.send_teams",
+   "fieldname": "section_break_teams_buttons",
+   "fieldtype": "Section Break",
+   "label": "Teams Buttons (Teams Bot Only)"
+  },
+  {
+   "fieldname": "teams_all_workflow_actions",
+   "fieldtype": "Check",
+   "label": "Add All Workflow Actions",
+   "description": "A button for every workflow action available from the document's current state."
+  },
+  {
+   "fieldname": "teams_buttons",
+   "fieldtype": "Table",
+   "label": "Buttons",
+   "options": "Teams Rule Button"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -295,7 +444,7 @@
    "link_fieldname": "notification_rule"
   }
  ],
- "modified": "2026-10-13 12:00:00.000000",
+ "modified": "2026-10-14 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Notification Engine",
  "name": "Notification Rule",

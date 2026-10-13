@@ -1,0 +1,27 @@
+{
+  "name": "teams-notify-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:demo": "vite --mode demo",
+    "build": "vite build --base=/assets/notification_engine/frontend/ && yarn copy-html-entry",
+    "build:demo": "vite build --mode demo && cp dist-demo/index.html dist-demo/404.html && touch dist-demo/.nojekyll",
+    "preview": "vite preview",
+    "copy-html-entry": "cp ../notification_engine/public/frontend/index.html ../notification_engine/www/teams-notify.html"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "frappe-react-sdk": "^1.14.0",
+    "lucide-react": "^1.14.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.14.2",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.10"
+  }
+}
