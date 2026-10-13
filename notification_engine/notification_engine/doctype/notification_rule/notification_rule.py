@@ -2,12 +2,23 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from notification_engine.engine.events import clear_rule_cache
+
 
 class NotificationRule(Document):
 	def validate(self):
 		self.validate_recipient_source()
 		self.validate_event_fields()
 		self.validate_email_delivery()
+
+	def on_update(self):
+		clear_rule_cache()
+
+	def on_trash(self):
+		clear_rule_cache()
+
+	def after_rename(self, *args, **kwargs):
+		clear_rule_cache()
 
 	def validate_recipient_source(self):
 		if self.recipient_source == "Role \u2192 Expand To Users" and not self.role:
@@ -16,7 +27,19 @@ class NotificationRule(Document):
 		if self.recipient_source == "Document Field (User)" and not self.document_field:
 			frappe.throw(_("Document Field is required when Recipient Source is 'Document Field (User)'"))
 
+		if self.recipient_source == "Designation":
+			if not frappe.db.exists("DocType", "Designation"):
+				frappe.throw(_("Recipient Source 'Designation' needs ERPNext (Employee / Designation) installed on this site."))
+			if not self.designation:
+				frappe.throw(_("Designation is required when Recipient Source is 'Designation'"))
+			if not frappe.db.exists("Designation", self.designation):
+				frappe.throw(_("Designation {0} does not exist").format(self.designation))
+
 		if self.recipient_source == "Workflow Roles (Project + Department)":
+			if not frappe.db.exists("DocType", "Employee"):
+				frappe.throw(
+					_("Recipient Source 'Workflow Roles (Project + Department)' needs ERPNext (Employee / Project / Department) installed on this site.")
+				)
 			# When "Notify Only Current State's Approver" is on, a rule can
 			# validly rely purely on the Direct Role Holder fallback (step 3
 			# of the resolution chain) with no Project or Department context
@@ -32,7 +55,7 @@ class NotificationRule(Document):
 					  "(e.g. CEO/MD/Purchase Head) without either field.")
 				)
 
-		no_recipient_table_sources = ("Document Field (User)", "Workflow Roles (Project + Department)")
+		no_recipient_table_sources = ("Document Field (User)", "Workflow Roles (Project + Department)", "Designation")
 		if self.recipient_source not in no_recipient_table_sources and not self.recipients:
 			frappe.msgprint(
 				_(
@@ -128,6 +151,14 @@ def sync_role_users(name):
 	added = doc.sync_from_role()
 	frappe.msgprint(_("Added {0} new recipient(s) from role '{1}'").format(added, doc.role))
 	return added
+
+
+@frappe.whitelist()
+def get_designations():
+	"""Options for the Designation picker. Empty when ERPNext isn't installed."""
+	if not frappe.db.exists("DocType", "Designation"):
+		return []
+	return frappe.get_all("Designation", pluck="name", order_by="name asc")
 
 
 @frappe.whitelist()

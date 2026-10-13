@@ -42,7 +42,11 @@ bench --site your-site migrate
    - *Workflow Roles (Project + Department)* - for workflows where the
      right person depends on which Project/Department the document
      belongs to (see below).
-4. Tick the channels you want: System Notification, Email, SMS.
+   - *Designation* - every active Employee with that Designation who is
+     linked to a User. Needs ERPNext (Employee / Designation); on a site
+     without it the rule cannot be saved with this source.
+4. Tick the channels you want: System Notification, Email, SMS - and
+   Teams, when the Teams Notify app is installed too (see Channels).
 5. If Email is on, choose a **Delivery Mode**:
    - *Individual Emails* - one send per recipient (uses one provider credit per person; use only when credits aren't a concern or true 1:1 messaging is needed).
    - *Single Email (To)* - one send total, all recipients visible to each other in To.
@@ -62,6 +66,7 @@ bench --site your-site migrate
 | System Notification | nothing extra - uses Frappe's own Notification Log |
 | Email | User must have an email address (standard) |
 | SMS | `Notification Engine Settings` gateway config; mobile number resolved from `Employee.cell_number`, falling back to `Contact.mobile_no` |
+| Teams | The [Teams Notify](https://github.com/Octo-Advisory/Teams-Notify) app on the same site. It adds a **Send Teams Message** tick and a Teams section to this form, and sends through its own queue. This app works the same without it. |
 
 ## Auditing deliveries
 
@@ -99,8 +104,21 @@ touch or delete the original core records.
 
 ## Extending
 
-- New channels: drop a `send(rule, doc, users, subject, message)` function
-  into `notification_engine/channels/`, and call it from
+- New channels from another app: register a function in that app's
+  `hooks.py`, no change to this app needed:
+
+  ```python
+  notification_engine_channels = ["my_app.integrations.notify.send"]
+  ```
+
+  The dispatcher calls `send(rule, doc, users, subject, message)` for every
+  rule it fires, after the built-in channels, with the users already
+  resolved (opt-outs applied) and the subject/message already rendered. The
+  function decides from the rule whether to send (e.g. a Custom Field
+  checkbox it adds) and logs its own deliveries. A failure is written to the
+  Error Log and never blocks other channels. Teams Notify uses this hook.
+- New built-in channels: drop a `send(rule, doc, users, subject, message)`
+  function into `notification_engine/channels/`, and call it from
   `engine/dispatcher.py`.
 - New trigger types: extend the `event` Select options on `Notification
   Rule` and add handling in `engine/events.py`.

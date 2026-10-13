@@ -5,6 +5,7 @@ const NOTIFICATION_ENGINE_LAYOUT_FIELDTYPES = [
 frappe.ui.form.on("Notification Rule", {
 	refresh(frm) {
 		refresh_dynamic_dropdowns(frm);
+		load_designation_options(frm);
 
 		if (!frm.is_new() && frm.doc.recipient_source === "Role \u2192 Expand To Users" && frm.doc.role) {
 			frm.add_custom_button(__("Sync From Role"), () => {
@@ -50,7 +51,35 @@ frappe.ui.form.on("Notification Rule", {
 	reference_doctype(frm) {
 		refresh_dynamic_dropdowns(frm, true);
 	},
+
+	recipient_source(frm) {
+		load_designation_options(frm);
+	},
 });
+
+/**
+ * Designation comes from ERPNext, which this app does not require, so the
+ * field is an Autocomplete filled from the server rather than a Link.
+ */
+function load_designation_options(frm) {
+	if (frm.doc.recipient_source !== "Designation") return;
+
+	frappe.call({
+		method: "notification_engine.notification_engine.doctype.notification_rule.notification_rule.get_designations",
+		callback: (r) => {
+			const options = r.message || [];
+			frm.set_df_property("designation", "options", options);
+			if (!options.length) {
+				frm.set_df_property(
+					"designation",
+					"description",
+					__("No Designations found. This source needs ERPNext (Employee / Designation) installed on this site.")
+				);
+			}
+			frm.refresh_field("designation");
+		},
+	});
+}
 
 /**
  * Populates every fieldname-picker on the form as a dropdown built from the

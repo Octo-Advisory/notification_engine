@@ -135,16 +135,30 @@ def _send_single(rule, doc, valid_emails, subject, message, cc_emails, bcc_email
 
 def _sendmail_and_get_communication(recipients, cc, bcc, subject, message, doc):
 	"""Sends via frappe.sendmail (same primitive core Notification uses) and
-	looks up the Communication record Frappe just created for it, so our log
-	can link to it rather than storing a second copy of the email body.
+	returns the Communication record for it, so our log can link to it
+	rather than storing a second copy of the email body.
 
-	frappe.sendmail() doesn't return the Communication name directly when
-	reference_doctype/reference_name are supplied, so we fetch the most
-	recently created outgoing Communication against this reference right
-	after sending - safe here because this call and the lookup are
-	synchronous with no concurrent sends against the same document in
-	between.
+	frappe.sendmail() never creates a Communication itself - core
+	Notification creates one first (send_email=False) and passes it in, so
+	the Email Queue rows point back at it. We do exactly the same.
 	"""
+	from frappe.core.doctype.communication.email import _make as make_communication
+
+	communication = None
+	if doc.doctype != "Communication":
+		communication = make_communication(
+			doctype=doc.doctype,
+			name=doc.name,
+			content=message,
+			subject=subject,
+			recipients=recipients,
+			cc=cc,
+			bcc=bcc,
+			communication_medium="Email",
+			send_email=False,
+			communication_type="Automated Message",
+		).get("name")
+
 	frappe.sendmail(
 		recipients=recipients,
 		cc=cc,
@@ -153,18 +167,9 @@ def _sendmail_and_get_communication(recipients, cc, bcc, subject, message, doc):
 		message=message,
 		reference_doctype=doc.doctype,
 		reference_name=doc.name,
+		communication=communication,
 	)
-
-	return frappe.db.get_value(
-		"Communication",
-		{
-			"reference_doctype": doc.doctype,
-			"reference_name": doc.name,
-			"sent_or_received": "Sent",
-		},
-		"name",
-		order_by="creation desc",
-	)
+	return communication
 
 
 def _get_placeholder_to_address(rule):

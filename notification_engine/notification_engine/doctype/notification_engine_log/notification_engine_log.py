@@ -2,6 +2,9 @@ import frappe
 from frappe.model.document import Document
 
 
+LOG_SAVEPOINT = "notification_engine_log"
+
+
 class NotificationEngineLog(Document):
 	pass
 
@@ -33,6 +36,7 @@ def create_log(notification_rule, channel, status, user=None, reference_doctype=
 	break the actual notification flow, so this swallows its own exceptions
 	(they still land in the Error Log for troubleshooting).
 	"""
+	frappe.db.savepoint(LOG_SAVEPOINT)
 	try:
 		frappe.get_doc(
 			{
@@ -54,7 +58,7 @@ def create_log(notification_rule, channel, status, user=None, reference_doctype=
 		).insert(ignore_permissions=True)
 		frappe.db.commit()
 	except Exception:
-		# rollback just our own failed insert attempt, not anything else
-		# already committed/pending from earlier in this request
-		frappe.db.rollback()
+		# roll back just our own failed insert attempt - a plain rollback()
+		# would also discard the triggering document's uncommitted save
+		frappe.db.rollback(save_point=LOG_SAVEPOINT)
 		frappe.log_error(title="Notification Engine Log failed to write")

@@ -40,6 +40,9 @@ def _get_candidates(rule, doc):
 		value = doc.get(rule.document_field)
 		return [value] if value else []
 
+	if rule.recipient_source == "Designation":
+		return users_with_designation(rule.designation)
+
 	if rule.recipient_source == "Workflow Roles (Project + Department)":
 		from notification_engine.engine.role_resolver import resolve_via_project_department
 
@@ -65,3 +68,22 @@ def _get_preferences(rule_name, users):
 		fields=["user", "is_enabled"],
 	)
 	return {row.user: bool(row.is_enabled) for row in rows}
+
+
+def users_with_designation(designation):
+	"""Users linked to an active Employee with this Designation.
+
+	Employee / Designation come from ERPNext, which is optional for this app:
+	on a site without them this simply resolves to nobody (the rule form
+	refuses to save such a rule in the first place).
+	"""
+	if not designation or not frappe.db.exists("DocType", "Employee"):
+		return []
+
+	users = frappe.get_all(
+		"Employee",
+		filters={"designation": designation, "status": "Active", "user_id": ["is", "set"]},
+		pluck="user_id",
+		order_by="name asc",
+	)
+	return list(dict.fromkeys(users))

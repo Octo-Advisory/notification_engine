@@ -38,6 +38,30 @@ def dispatch(rule, doc, users):
 			lambda: sms_channel.send(rule, doc, users, subject, message),
 		)
 
+	_run_external_channels(rule, doc, users, subject, message)
+
+
+def _run_external_channels(rule, doc, users, subject, message):
+	"""Extra channels other apps register in their hooks.py:
+
+		notification_engine_channels = ["my_app.integrations.notify.send"]
+
+	Each is called as fn(rule, doc, users, subject, message) after the
+	built-in channels, with the same resolved users and rendered content.
+	The function decides from the rule itself whether it should send (e.g.
+	a custom "send_teams" checkbox) and does its own per-user logging, the
+	same as the built-in channels. One app's failure never blocks the others.
+	"""
+	for method in frappe.get_hooks("notification_engine_channels"):
+		try:
+			frappe.get_attr(method)(rule, doc, users, subject, message)
+		except Exception:
+			frappe.log_error(
+				title=f"Notification Engine: channel {method} failed",
+				reference_doctype=doc.doctype,
+				reference_name=doc.name,
+			)
+
 
 def _run_channel(channel_name, rule, doc, users, subject, message, fn):
 	"""Runs one channel's send function. The channel itself is responsible

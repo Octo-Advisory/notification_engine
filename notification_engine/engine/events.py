@@ -5,6 +5,21 @@ from notification_engine.engine.condition import evaluate_condition
 from notification_engine.engine.resolver import resolve_recipients
 from notification_engine.engine.dispatcher import dispatch
 
+RULE_CACHE_KEY = "notification_engine:rule_index"
+
+# Saving these must never trigger a rule - writing a Notification Engine Log
+# row happens on every send, so this also keeps the hot path cheap.
+OWN_DOCTYPES = frozenset(
+	(
+		"Notification Rule",
+		"Notification Rule Recipient",
+		"Notification Rule Cc Bcc Recipient",
+		"Notification User Preference",
+		"Notification Engine Settings",
+		"Notification Engine Log",
+	)
+)
+
 EVENT_MAP = {
 	"after_insert": "After Insert",
 	"on_update": "On Update",
@@ -57,8 +72,21 @@ def on_workflow_action(doc, method=None, **kwargs):
 	_process_value_change(doc)
 
 
+def _should_skip(doc):
+	"""Own DocTypes, and bulk operations (data import, patches, install,
+	migrate) where a notification per row would flood every recipient."""
+	if doc.doctype in OWN_DOCTYPES:
+		return True
+	return bool(
+		frappe.flags.in_import or frappe.flags.in_patch or frappe.flags.in_install or frappe.flags.in_migrate
+	)
+
+
 def _process(doc, hook_event):
 	"""Fetch and run every enabled rule whose `event` maps to this hook."""
+	if _should_skip(doc):
+		return
+
 	event_label = "Workflow Action" if hook_event == "workflow_action" else EVENT_MAP.get(hook_event)
 	if not event_label:
 		return
@@ -77,7 +105,7 @@ def _process_value_change(doc):
 	within the same request for the same document, the check still only
 	runs once and can't send a duplicate notification.
 	"""
-	if doc.flags.get("_notification_engine_value_change_done"):
+	if _should_skip(doc) or doc.flags.get("_notification_engine_value_change_done"):
 		return
 
 	rules = _get_matching_rules(doc.doctype, "Value Change")
@@ -99,12 +127,43 @@ def _process_value_change(doc):
 
 
 def _get_matching_rules(reference_doctype, event_label):
-	names = frappe.get_all(
+	names = get_rule_index().get(reference_doctype, {}).get(event_label, [])
+	rules = []
+	for name in names:
+		try:
+			rules.append(frappe.get_cached_doc("Notification Rule", name))
+		except frappe.DoesNotExistError:
+			# cached index outlived the rule (e.g. its insert was rolled back)
+			frappe.clear_last_message()
+			clear_rule_cache()
+	return rules
+
+
+def get_rule_index():
+	"""{reference_doctype: {event: [rule names]}} for enabled rules, cached in
+	Redis. These hooks run on every document save on the site, so the common
+	case (no rule for this DocType) must not cost a database query.
+	"""
+	return frappe.cache.get_value(RULE_CACHE_KEY, generator=_load_rule_index)
+
+
+def clear_rule_cache(*args, **kwargs):
+	frappe.cache.delete_value(RULE_CACHE_KEY)
+
+
+def _load_rule_index():
+	if not frappe.db.table_exists("Notification Rule"):
+		return {}
+
+	index = {}
+	for row in frappe.get_all(
 		"Notification Rule",
-		filters={"reference_doctype": reference_doctype, "event": event_label, "is_enabled": 1},
-		pluck="name",
-	)
-	return [frappe.get_cached_doc("Notification Rule", name) for name in names]
+		filters={"is_enabled": 1},
+		fields=["name", "reference_doctype", "event"],
+		order_by="creation asc",
+	):
+		index.setdefault(row.reference_doctype, {}).setdefault(row.event, []).append(row.name)
+	return index
 
 
 def _run_rule(rule, doc):

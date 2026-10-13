@@ -20,6 +20,7 @@
   "recipient_source",
   "role",
   "document_field",
+  "designation",
   "project_field",
   "department_field",
   "match_current_state_role",
@@ -76,7 +77,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Event",
-   "options": "After Insert\nOn Update\nOn Submit\nOn Cancel\nOn Trash\nValue Change\nWorkflow Action\nDays Before\nDays After",
+   "options": "After Insert\nOn Update\nOn Submit\nOn Cancel\nOn Trash\nValue Change\nDays Before\nDays After",
    "reqd": 1
   },
   {
@@ -124,7 +125,7 @@
    "fieldname": "recipient_source",
    "fieldtype": "Select",
    "label": "Recipient Source",
-   "options": "Specific Users\nRole \u2192 Expand To Users\nDocument Field (User)\nWorkflow Roles (Project + Department)",
+   "options": "Specific Users\nRole \u2192 Expand To Users\nDocument Field (User)\nWorkflow Roles (Project + Department)\nDesignation",
    "reqd": 1
   },
   {
@@ -143,6 +144,14 @@
    "fieldtype": "Select",
    "label": "Document Field",
    "mandatory_depends_on": "eval:doc.recipient_source==\"Document Field (User)\""
+  },
+  {
+   "depends_on": "eval:doc.recipient_source==\"Designation\"",
+   "mandatory_depends_on": "eval:doc.recipient_source==\"Designation\"",
+   "description": "Notifies every active Employee with this Designation who is linked to a User. Needs ERPNext (Employee / Designation).",
+   "fieldname": "designation",
+   "fieldtype": "Autocomplete",
+   "label": "Designation"
   },
   {
    "depends_on": "eval:doc.recipient_source==\"Workflow Roles (Project + Department)\"",
@@ -182,7 +191,7 @@
    "read_only": 1
   },
   {
-   "depends_on": "eval:doc.recipient_source!=\"Document Field (User)\" && doc.recipient_source!=\"Workflow Roles (Project + Department)\"",
+   "depends_on": "eval:![\"Document Field (User)\",\"Workflow Roles (Project + Department)\",\"Designation\"].includes(doc.recipient_source)",
    "description": "The final, resolved list of users. Untick \"Enabled\" on any row to silence that specific person without removing them.",
    "fieldname": "recipients",
    "fieldtype": "Table",
@@ -286,7 +295,7 @@
    "link_fieldname": "notification_rule"
   }
  ],
- "modified": "2026-08-10 00:00:00.000000",
+ "modified": "2026-10-13 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Notification Engine",
  "name": "Notification Rule",
